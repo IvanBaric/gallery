@@ -40,7 +40,7 @@
         </x-admin-ui::toolbar>
     </x-admin-ui::toolbar-stack>
 
-    <x-admin-ui::panel loading loading-target="search,regenerateGallery,regenerateAll,saveSettings,createGallery,openGallery" loading-text="{{ __('Osvježavam galerije') }}">
+    <x-admin-ui::panel loading loading-target="search,regenerateAll,saveSettings,createGallery" loading-text="{{ __('Osvježavam galerije') }}">
         @if ($this->galleries->isEmpty())
             <x-admin-ui::empty-state
                 :title="filled($search) ? __('Nema rezultata') : __('Još nema galerija')"
@@ -53,9 +53,30 @@
         @else
             <div class="admin-list-header grid-cols-[minmax(0,1fr)_8rem_10rem_10rem_9rem]">
                 <div>{{ mb_strtoupper(__('Galerija')) }}</div>
-                <div class="text-center">{{ mb_strtoupper(__('Slike')) }}</div>
-                <div>{{ mb_strtoupper(__('Kreirano')) }}</div>
-                <div>{{ mb_strtoupper(__('Ažurirano')) }}</div>
+                <div class="flex justify-center">
+                    <button type="button" wire:click="sortBy('images_count')" class="inline-flex items-center justify-center gap-1 transition duration-150 ease-out hover:text-zinc-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 dark:hover:text-zinc-200">
+                        {{ mb_strtoupper(__('Slike')) }}
+                        @if ($sortField === 'images_count')
+                            <flux:icon :icon="$sortDirection === 'asc' ? 'chevron-up' : 'chevron-down'" variant="micro" class="size-3" />
+                        @endif
+                    </button>
+                </div>
+                <div>
+                    <button type="button" wire:click="sortBy('created_at')" class="inline-flex items-center gap-1 transition duration-150 ease-out hover:text-zinc-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 dark:hover:text-zinc-200">
+                        {{ mb_strtoupper(__('Kreirano')) }}
+                        @if ($sortField === 'created_at')
+                            <flux:icon :icon="$sortDirection === 'asc' ? 'chevron-up' : 'chevron-down'" variant="micro" class="size-3" />
+                        @endif
+                    </button>
+                </div>
+                <div>
+                    <button type="button" wire:click="sortBy('updated_at')" class="inline-flex items-center gap-1 transition duration-150 ease-out hover:text-zinc-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 dark:hover:text-zinc-200">
+                        {{ mb_strtoupper(__('Ažurirano')) }}
+                        @if ($sortField === 'updated_at')
+                            <flux:icon :icon="$sortDirection === 'asc' ? 'chevron-up' : 'chevron-down'" variant="micro" class="size-3" />
+                        @endif
+                    </button>
+                </div>
                 <div class="text-right">{{ mb_strtoupper(__('Akcije')) }}</div>
             </div>
 
@@ -113,9 +134,7 @@
                     </div>
 
                     <div class="flex items-center justify-end gap-1">
-                        <flux:tooltip :content="__('Ponovno generiraj veličine slika')">
-                            <flux:button type="button" size="sm" variant="ghost" icon="arrow-path" wire:click="regenerateGallery('{{ $gallery->uuid }}')" wire:loading.attr="disabled" aria-label="{{ __('Regeneriraj galeriju') }}" />
-                        </flux:tooltip>
+                        <flux:button :href="route('admin.galleries.edit', ['uuid' => $gallery->uuid])" wire:navigate type="button" size="sm" variant="ghost" icon="pencil-square" aria-label="{{ __('Uredi galeriju') }}" />
                     </div>
                 </article>
             @endforeach

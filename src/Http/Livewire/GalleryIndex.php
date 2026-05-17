@@ -18,6 +18,10 @@ class GalleryIndex extends Component
 
     public string $search = '';
 
+    public string $sortField = 'updated_at';
+
+    public string $sortDirection = 'desc';
+
     public array $sizeSettings = [];
 
     public function mount(): void
@@ -27,6 +31,22 @@ class GalleryIndex extends Component
 
     public function updatedSearch(): void
     {
+        $this->resetPage();
+    }
+
+    public function sortBy(string $field): void
+    {
+        if (! in_array($field, ['images_count', 'created_at', 'updated_at'], true)) {
+            return;
+        }
+
+        if ($this->sortField === $field) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortField = $field;
+            $this->sortDirection = 'desc';
+        }
+
         $this->resetPage();
     }
 
@@ -139,6 +159,7 @@ class GalleryIndex extends Component
         return Gallery::query()
             ->forCurrentTenant()
             ->with(['media', 'featuredMedia', 'galleryable'])
+            ->withCount('media as images_count')
             ->when($this->search !== '', function ($query): void {
                 $search = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $this->search).'%';
 
@@ -148,7 +169,7 @@ class GalleryIndex extends Component
                         ->orWhere('collection_name', 'like', $search);
                 });
             })
-            ->latest('created_at')
+            ->orderBy($this->sortField, $this->sortDirection)
             ->latest('id')
             ->simplePaginate(18);
     }
