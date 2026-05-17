@@ -124,7 +124,7 @@ class GalleryManager extends Component
 
     public function reorderMedia(int $mediaId, int $position): void
     {
-        $gallery = $this->currentGallery();
+        $gallery = $this->currentGallery()->fresh();
 
         $ids = $gallery->getMedia($this->collection)
             ->pluck('id')
@@ -139,7 +139,8 @@ class GalleryManager extends Component
         Media::setNewOrder($ids);
 
         $gallery->touch();
-        unset($this->gallery, $this->mediaItems);
+        $gallery->unsetRelation('media');
+        unset($this->subject, $this->gallery, $this->mediaItems);
     }
 
     public function setFeaturedMedia(int $mediaId): void

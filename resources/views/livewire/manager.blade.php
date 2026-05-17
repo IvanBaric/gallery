@@ -87,7 +87,7 @@
                             $alt = method_exists($img, 'altText') ? $img->altText($gallery->displayTitle()) : $img->name;
                         @endphp
 
-                        <div wire:key="gallery-media-{{ $img->id }}" wire:sort:item="{{ $img->id }}" class="group/img relative cursor-grab overflow-hidden rounded-xl ring-1 ring-zinc-950/5 transition duration-150 ease-out hover:ring-zinc-950/15 active:cursor-grabbing dark:ring-white/10 dark:hover:ring-white/20">
+                        <div wire:key="gallery-media-{{ $img->id }}" wire:sort:item="{{ $img->id }}" class="group/img relative overflow-hidden rounded-xl ring-1 ring-zinc-950/5 transition duration-150 ease-out hover:ring-zinc-950/15 dark:ring-white/10 dark:hover:ring-white/20">
                             <img src="{{ $thumb }}" alt="{{ $alt }}" class="pointer-events-none aspect-[4/3] w-full object-cover select-none" loading="lazy" draggable="false" />
 
                             @if ($isFeatured)
@@ -99,6 +99,10 @@
 
                             <span class="pointer-events-none absolute right-2 top-2 inline-flex size-5 items-center justify-center rounded-md bg-white/90 text-zinc-500 opacity-0 shadow-sm ring-1 ring-zinc-950/10 transition duration-150 ease-out group-hover/img:opacity-100 dark:bg-zinc-950/90 dark:text-zinc-400 dark:ring-white/10" aria-hidden="true">
                                 <flux:icon icon="arrows-pointing-out" variant="micro" class="size-3" />
+                            </span>
+
+                            <span wire:sort:handle class="absolute left-2 top-2 inline-flex size-5 cursor-grab items-center justify-center rounded-md bg-white/90 text-zinc-500 opacity-0 shadow-sm ring-1 ring-zinc-950/10 transition duration-150 ease-out group-hover/img:opacity-100 active:cursor-grabbing dark:bg-zinc-950/90 dark:text-zinc-400 dark:ring-white/10" aria-label="{{ __('Povucite za promjenu redoslijeda') }}">
+                                <flux:icon icon="bars-3" variant="micro" class="size-3" />
                             </span>
 
                             <div wire:sort:ignore class="absolute inset-x-0 bottom-0 flex items-center justify-end gap-1 bg-gradient-to-t from-black/55 via-black/25 to-transparent p-1.5 opacity-0 transition duration-150 ease-out group-hover/img:opacity-100 group-focus-within/img:opacity-100">
