@@ -297,6 +297,10 @@ class GalleryManager extends Component
     #[Computed]
     public function gallery(): Gallery
     {
+        if ($this->subject instanceof Gallery) {
+            return $this->subject;
+        }
+
         if (! method_exists($this->subject, 'getOrCreateGallery')) {
             throw new \RuntimeException('The model must use '.HasGalleries::class.'.');
         }

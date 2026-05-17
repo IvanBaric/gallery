@@ -10,10 +10,13 @@
 <x-admin-ui::page>
     <x-admin-ui::page-header :title="__('Galerija')" :description="__('Centralni pregled svih galerija, slika i generiranih veličina.')">
         <x-slot:actions>
+            <flux:button type="button" variant="primary" icon="plus" wire:click="openCreateGallery">
+                {{ __('Dodaj novu galeriju') }}
+            </flux:button>
             <flux:button type="button" variant="ghost" icon="arrow-path" wire:click="regenerateAll" wire:loading.attr="disabled">
                 {{ __('Regeneriraj sve') }}
             </flux:button>
-            <flux:button type="button" variant="primary" icon="cog-6-tooth" wire:click="openSettings">
+            <flux:button type="button" variant="ghost" icon="cog-6-tooth" wire:click="openSettings">
                 {{ __('Postavke') }}
             </flux:button>
         </x-slot:actions>
@@ -37,7 +40,7 @@
         </x-admin-ui::toolbar>
     </x-admin-ui::toolbar-stack>
 
-    <x-admin-ui::panel loading loading-target="search,regenerateGallery,regenerateAll,saveSettings" loading-text="{{ __('Osvježavam galerije') }}">
+    <x-admin-ui::panel loading loading-target="search,regenerateGallery,regenerateAll,saveSettings,createGallery,openGallery" loading-text="{{ __('Osvježavam galerije') }}">
         @if ($this->galleries->isEmpty())
             <x-admin-ui::empty-state
                 :title="filled($search) ? __('Nema rezultata') : __('Još nema galerija')"
@@ -48,9 +51,10 @@
                 </x-slot:icon>
             </x-admin-ui::empty-state>
         @else
-            <div class="admin-list-header grid-cols-[minmax(0,1fr)_8rem_10rem_9rem]">
+            <div class="admin-list-header grid-cols-[minmax(0,1fr)_8rem_10rem_10rem_9rem]">
                 <div>{{ mb_strtoupper(__('Galerija')) }}</div>
                 <div class="text-center">{{ mb_strtoupper(__('Slike')) }}</div>
+                <div>{{ mb_strtoupper(__('Kreirano')) }}</div>
                 <div>{{ mb_strtoupper(__('Ažurirano')) }}</div>
                 <div class="text-right">{{ mb_strtoupper(__('Akcije')) }}</div>
             </div>
@@ -61,7 +65,7 @@
                     $count = $gallery->getMedia($gallery->collection_name)->count();
                     $thumb = $featured?->getAvailableUrl(['admin_thumb', 'thumbnail', 'thumb']);
                 @endphp
-                <article wire:key="gallery-{{ $gallery->uuid }}" class="admin-list-row grid-cols-[minmax(0,1fr)_8rem_10rem_9rem] p-4 sm:p-6">
+                <article wire:key="gallery-{{ $gallery->uuid }}" class="admin-list-row grid-cols-[minmax(0,1fr)_8rem_10rem_10rem_9rem] p-4 sm:p-6">
                     <div class="flex min-w-0 items-center gap-4">
                         <div class="size-20 shrink-0 overflow-hidden rounded-xl bg-zinc-100 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
                             @if ($thumb)
@@ -74,7 +78,13 @@
                         </div>
 
                         <div class="min-w-0">
-                            <p class="truncate text-sm font-semibold text-zinc-950 dark:text-white">{{ $gallery->displayTitle() }}</p>
+                            <button
+                                type="button"
+                                class="truncate text-left text-sm font-semibold text-zinc-950 underline-offset-4 hover:underline dark:text-white"
+                                wire:click="openGallery('{{ $gallery->uuid }}')"
+                            >
+                                {{ $gallery->displayTitle() }}
+                            </button>
                             <p class="mt-1 truncate text-[12px] leading-5 text-zinc-500 dark:text-zinc-400">{{ $gallery->ownerLabel() }}</p>
                             <p class="mt-1 text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500">{{ $gallery->collection_name }}</p>
                         </div>
@@ -83,6 +93,11 @@
                     <div class="flex items-center justify-between gap-3 lg:justify-center">
                         <span class="text-sm font-medium text-zinc-400 lg:hidden">{{ __('Slike') }}</span>
                         <span class="font-semibold tabular-nums text-zinc-700 dark:text-zinc-200">{{ $count }}</span>
+                    </div>
+
+                    <div class="flex items-center justify-between gap-3 lg:block">
+                        <span class="text-sm font-medium text-zinc-400 lg:hidden">{{ __('Kreirano') }}</span>
+                        <span class="text-[13px] font-medium text-zinc-600 dark:text-zinc-300">{{ $gallery->created_at?->format('d.m.Y. H:i') }}</span>
                     </div>
 
                     <div class="flex items-center justify-between gap-3 lg:block">
@@ -103,6 +118,41 @@
     @if ($this->galleries->hasPages())
         <flux:pagination :paginator="$this->galleries" />
     @endif
+
+    <flux:modal name="gallery-create" class="max-w-2xl">
+        <form wire:submit="createGallery" class="space-y-6">
+            <div>
+                <flux:heading size="lg">{{ __('Dodaj novu galeriju') }}</flux:heading>
+                <flux:subheading class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{{ __('Kreirajte galeriju i odmah dodajte fotografije.') }}</flux:subheading>
+            </div>
+
+            <div class="grid gap-4">
+                <flux:input wire:model="newGalleryTitle" :label="__('Naziv')" />
+                <flux:input wire:model="newGalleryCollection" :label="__('Kolekcija')" placeholder="images" />
+                <flux:textarea wire:model="newGalleryDescription" :label="__('Opis')" rows="3" />
+            </div>
+
+            <div class="flex items-center justify-end gap-2">
+                <flux:modal.close>
+                    <flux:button type="button" variant="ghost">{{ __('Odustani') }}</flux:button>
+                </flux:modal.close>
+                <flux:button type="submit" variant="primary" icon="plus">{{ __('Kreiraj galeriju') }}</flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
+    <flux:modal name="gallery-open" class="max-w-7xl">
+        @if ($this->activeGallery)
+            <x-gallery::manager
+                :model="$this->activeGallery"
+                :collection="$this->activeGallery->collection_name"
+                context="default"
+                :title="$this->activeGallery->displayTitle()"
+                :description="$this->activeGallery->description ?: __('Uređivanje fotografija galerije.')"
+                :migrate-legacy="false"
+            />
+        @endif
+    </flux:modal>
 
     <flux:modal name="gallery-settings" class="max-w-4xl">
         <form wire:submit="saveSettings" class="space-y-6">
