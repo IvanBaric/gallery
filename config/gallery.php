@@ -39,6 +39,16 @@ return [
         'groups' => GalleryPermissions::groups(),
     ],
 
+    'deletion' => [
+        /*
+         * Password confirmation modes:
+         * - non_empty: require a password only when the gallery contains media.
+         * - always: require a password for every gallery deletion.
+         * - never: delete from the confirmation modal without a password.
+         */
+        'password_confirmation' => env('GALLERY_DELETE_PASSWORD_CONFIRMATION', 'non_empty'),
+    ],
+
     'disk' => env('GALLERY_DISK', env('MEDIA_DISK', 'public')),
     'default_collection' => 'images',
 

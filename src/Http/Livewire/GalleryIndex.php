@@ -76,6 +76,12 @@ class GalleryIndex extends Component
         $this->dispatch('modal-show', name: 'gallery-settings');
     }
 
+    public function openRegenerateAllConfirmation(): void
+    {
+        $this->authorizeGalleryAction('regenerate');
+        $this->dispatch('modal-show', name: 'gallery-regenerate-all-confirm');
+    }
+
     public function openCreateGalleryModal(): void
     {
         $this->authorizeGalleryAction('create');
@@ -193,6 +199,8 @@ class GalleryIndex extends Component
             RegenerateGalleryConversions::dispatch((int) $gallery->getKey(), $ids);
         }
 
+        $this->dispatch('modal-close', name: 'gallery-regenerate-all-confirm');
+
         Flux::toast(
             heading: __('Regeneriranje pokrenuto'),
             text: trans_choice('{1} Jedna galerija je poslana u obradu.|[2,*] :count galerija je poslano u obradu.', $galleries->count(), ['count' => $galleries->count()]),
@@ -207,8 +215,6 @@ class GalleryIndex extends Component
 
         return [
             'all' => ['label' => __('Sve'), 'count' => $stats['galleries']],
-            'standalone' => ['label' => __('Samostalne'), 'count' => $stats['standalone']],
-            'vehicles' => ['label' => __('Vozila'), 'count' => $stats['vehicles']],
             'empty' => ['label' => __('Prazne'), 'count' => $stats['empty']],
             'without_featured' => ['label' => __('Bez istaknute slike'), 'count' => $stats['without_featured']],
         ];
@@ -230,8 +236,6 @@ class GalleryIndex extends Component
                         ->orWhere('collection_name', 'like', $search);
                 });
             })
-            ->when($this->filter === 'standalone', fn (Builder $query): Builder => $query->whereNull('galleryable_type'))
-            ->when($this->filter === 'vehicles', fn (Builder $query): Builder => $this->scopeVehicles($query))
             ->when($this->filter === 'empty', fn (Builder $query): Builder => $query->whereDoesntHave('media'))
             ->when($this->filter === 'without_featured', fn (Builder $query): Builder => $query->whereNull('featured_media_id')->has('media'))
             ->orderBy($this->sortField, $this->sortDirection)
@@ -255,6 +259,29 @@ class GalleryIndex extends Component
         ];
     }
 
+    #[Computed]
+    public function regenerationSummary(): array
+    {
+        $galleries = Gallery::query()
+            ->forCurrentTenant()
+            ->with('media')
+            ->get()
+            ->filter(fn (Gallery $gallery): bool => $gallery->getMedia($gallery->collection_name)->isNotEmpty());
+
+        $lastRegeneratedAt = $galleries
+            ->map(fn (Gallery $gallery) => $gallery->lastRegeneratedAt())
+            ->filter()
+            ->sortByDesc(fn ($date): int => $date->getTimestamp())
+            ->first();
+
+        return [
+            'galleries' => $galleries->count(),
+            'images' => $galleries->sum(fn (Gallery $gallery): int => $gallery->getMedia($gallery->collection_name)->count()),
+            'queued' => $galleries->filter(fn (Gallery $gallery): bool => $gallery->regenerationQueuedAt() !== null)->count(),
+            'last_regenerated_at' => $lastRegeneratedAt,
+        ];
+    }
+
     public function render()
     {
         return view('gallery::livewire.index')->title(__('Galerija'));
@@ -275,17 +302,4 @@ class GalleryIndex extends Component
         GalleryPermissions::authorize($action);
     }
 
-    private function scopeVehicles(Builder $query): Builder
-    {
-        if (class_exists('\\App\\Models\\Car')) {
-            $car = new \App\Models\Car();
-
-            return $query->whereIn('galleryable_type', array_unique([
-                $car->getMorphClass(),
-                \App\Models\Car::class,
-            ]));
-        }
-
-        return $query->where('galleryable_type', 'like', '%Car');
-    }
 }

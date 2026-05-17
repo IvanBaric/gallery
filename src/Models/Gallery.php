@@ -47,6 +47,30 @@ class Gallery extends Model implements HasMedia
         return $this->belongsTo(config('gallery.models.media'), 'featured_media_id');
     }
 
+    public function scopeStandalone(Builder $query): Builder
+    {
+        return $query
+            ->whereNull('galleryable_type')
+            ->whereNull('galleryable_id');
+    }
+
+    public function scopeAttached(Builder $query): Builder
+    {
+        return $query
+            ->whereNotNull('galleryable_type')
+            ->whereNotNull('galleryable_id');
+    }
+
+    public function scopeForCollection(Builder $query, string $collection): Builder
+    {
+        return $query->where('collection_name', $collection);
+    }
+
+    public function scopeEmpty(Builder $query): Builder
+    {
+        return $query->whereDoesntHave('media');
+    }
+
     public function scopeForCurrentTenant(Builder $query): Builder
     {
         $resolver = app(TenantResolver::class);

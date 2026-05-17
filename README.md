@@ -11,11 +11,12 @@ The package is intentionally generic. It can be used for any model or project th
 - `HasGalleries` trait for attaching galleries to existing models.
 - Livewire admin manager component for uploads, ordering, featured image, SEO metadata and deletion.
 - Admin gallery index and edit screens.
+- Standalone gallery selector for assigning empty standalone galleries to any model with `flux:select`.
 - Image size settings with WordPress-like defaults.
 - Queued or synchronous conversion regeneration.
 - Protected media route.
 - Optional tenancy support.
-- Optional permission layer for view, create, update, upload, SEO, regenerate, settings and delete actions.
+- Optional permission layer for view, create, update, upload, attach, SEO, regenerate, settings and delete actions.
 - Public `<x-gallery::lightbox>` component with thumbnails, keyboard navigation, swipe gestures, counter, modal view and empty state.
 
 ## Requirements
@@ -109,6 +110,57 @@ The manager supports:
 - SEO metadata per image: alt text, title, caption, description, credit, source URL, license and decorative image flag.
 - Delete confirmation modals.
 - Gallery conversion regeneration.
+
+For models that use `HasGalleries`, the manager is lazy. Opening a form does not create an empty attached gallery. The gallery row is created only when the first image is uploaded.
+
+When the last image is removed from an attached model gallery, the empty gallery row is deleted automatically. If the user uploads an image again later, the manager creates a fresh gallery for that model and collection.
+
+## Standalone Gallery Assignment
+
+Standalone galleries are useful as reusable drafts. You can create an empty gallery in the gallery module, then later assign it to a model such as a post, page, product or vehicle.
+
+The package ships a ready-made Flux selector:
+
+```blade
+<x-gallery::standalone-selector
+    :model="$post"
+    collection="images"
+    :description="__('Odaberite praznu samostalnu galeriju koju želite dodijeliti ovom zapisu.')"
+/>
+```
+
+By default the selector lists only empty standalone galleries for the selected collection. When the user clicks the button, the selected gallery is assigned to the model by filling `galleryable_type`, `galleryable_id` and `collection_name`.
+
+Selector options:
+
+- `model`: saved Eloquent model that uses `IvanBaric\Gallery\Concerns\HasGalleries`.
+- `collection`: target collection, default `images`.
+- `emptyOnly`: list only empty standalone galleries, default `true`.
+- `allowReplace`: allow replacing an existing gallery for that collection, default `false`.
+- `showCurrent`: show the currently assigned gallery, default `true`.
+- `label`, `placeholder`, `buttonLabel`, `description`: UI text overrides.
+
+You can also use the backend helper directly in your own Livewire form:
+
+```php
+use IvanBaric\Gallery\Models\Gallery;
+
+$gallery = Gallery::query()
+    ->standalone()
+    ->empty()
+    ->where('uuid', $this->galleryUuid)
+    ->firstOrFail();
+
+$post->attachStandaloneGallery($gallery, collection: 'images');
+```
+
+If the model already has a gallery for the collection, `attachStandaloneGallery()` refuses to replace it unless you pass `replace: true`:
+
+```php
+$post->attachStandaloneGallery($gallery, collection: 'images', replace: true);
+```
+
+Replacement detaches the previous gallery and leaves it as standalone; it does not delete its media.
 
 ## Public Lightbox
 
@@ -213,6 +265,7 @@ gallery.view
 gallery.create
 gallery.update
 gallery.upload
+gallery.attach
 gallery.seo
 gallery.regenerate
 gallery.settings
@@ -243,6 +296,7 @@ Or assign only selected actions:
 ```php
 'permissions' => [
     GalleryPermissions::VIEW,
+    GalleryPermissions::ATTACH,
     GalleryPermissions::UPLOAD,
     GalleryPermissions::SEO,
 ],
@@ -251,8 +305,32 @@ Or assign only selected actions:
 When enabled, the package checks permissions on:
 
 - Admin gallery routes through `gallery.permission:view`.
-- Livewire actions such as create, upload, update, SEO edit, regenerate, settings save and delete.
+- Livewire actions such as create, upload, attach, update, SEO edit, regenerate, settings save and delete.
 - Visible admin controls, so users only see actions they can use.
+
+## Delete Confirmation
+
+Gallery deletion uses a confirmation modal. By default, the package asks for the current user's password only when the gallery contains media. Empty galleries can be deleted from the confirmation modal without typing a password.
+
+Configure the behavior in `config/gallery.php`:
+
+```php
+'deletion' => [
+    'password_confirmation' => 'non_empty',
+],
+```
+
+Available modes:
+
+- `non_empty`: require a password only when the gallery has media.
+- `always`: require a password for every gallery deletion.
+- `never`: never ask for a password in the delete modal.
+
+The same setting can be controlled with:
+
+```env
+GALLERY_DELETE_PASSWORD_CONFIRMATION=non_empty
+```
 
 You can override action codes in `config/gallery.php`:
 

@@ -7,13 +7,13 @@
     $maxMb = number_format($this->maxFileSizeKb / 1024, 0, ',', ' ');
     $panelTitle = $title ?: __('Fotografije');
     $panelDescription = $description ?: __('Dodajte slike, postavite redoslijed i istaknutu fotografiju.');
-    $featuredId = $gallery->featured_media_id ?: $mediaItems->first()?->id;
+    $featuredId = ($gallery?->featured_media_id) ?: $mediaItems->first()?->id;
     $acceptedFormats = strtoupper(str_replace([',', '.'], [', ', ''], $this->acceptedMimes));
     $isFull = $remainingSlots <= 0;
     $selectedMediaCount = $this->selectedMediaCount;
     $seoCompleteCount = $this->seoCompleteCount;
-    $lastRegeneratedAt = $gallery->lastRegeneratedAt();
-    $queuedAt = $gallery->regenerationQueuedAt();
+    $lastRegeneratedAt = $gallery?->lastRegeneratedAt();
+    $queuedAt = $gallery?->regenerationQueuedAt();
     $canUpload = $this->allowsGalleryAction('upload');
     $canUpdate = $this->allowsGalleryAction('update');
     $canDelete = $this->allowsGalleryAction('delete');
@@ -137,8 +137,8 @@
                     @php
                         $isFeatured = (int) $featuredId === (int) $img->id;
                         $thumb = $img->getAvailableUrl(['admin_thumb', 'thumbnail', 'thumb']);
-                        $alt = method_exists($img, 'altText') ? $img->altText($gallery->displayTitle()) : $img->name;
-                        $hasSeo = $gallery->mediaHasSeo($img);
+                        $alt = method_exists($img, 'altText') ? $img->altText($gallery?->displayTitle() ?? $panelTitle) : $img->name;
+                        $hasSeo = $gallery?->mediaHasSeo($img) ?? false;
                     @endphp
 
                     <div wire:key="gallery-media-{{ $img->id }}" wire:sort:item="{{ $img->id }}" class="group/img relative overflow-hidden rounded-xl bg-zinc-100 ring-1 ring-zinc-950/5 transition duration-150 ease-out hover:ring-zinc-950/15 dark:bg-zinc-900 dark:ring-white/10 dark:hover:ring-white/20">
@@ -309,7 +309,7 @@
                     </div>
                     <div class="min-w-0 flex-1">
                         <p class="truncate text-[14px] font-semibold leading-5 text-zinc-950 dark:text-white">{{ $this->pendingDeleteMedia->name }}</p>
-                        <p class="mt-0.5 text-[12px] leading-5 text-zinc-500 dark:text-zinc-400">{{ $gallery->displayTitle() }}</p>
+                        <p class="mt-0.5 text-[12px] leading-5 text-zinc-500 dark:text-zinc-400">{{ $gallery?->displayTitle() ?? $panelTitle }}</p>
                     </div>
                 </div>
             @endif

@@ -101,7 +101,7 @@ class GalleryManager extends Component
 
         $this->validateUploadPayload();
 
-        $gallery = $this->currentGallery();
+        $gallery = $this->currentGallery(create: true);
 
         foreach ($this->uploads as $upload) {
             $gallery
@@ -206,6 +206,8 @@ class GalleryManager extends Component
         } else {
             $gallery->touch();
         }
+
+        $this->deleteAttachedGalleryIfEmpty($gallery);
 
         $count = $media->count();
         $this->selectedMediaIds = [];
@@ -390,6 +392,8 @@ class GalleryManager extends Component
             $gallery->touch();
         }
 
+        $this->deleteAttachedGalleryIfEmpty($gallery);
+
         $this->pendingDeleteMediaId = null;
         $this->dispatch('modal-close', name: $this->deleteModalName());
         unset($this->gallery, $this->mediaItems);
@@ -434,23 +438,23 @@ class GalleryManager extends Component
     }
 
     #[Computed]
-    public function gallery(): Gallery
+    public function gallery(): ?Gallery
     {
         if ($this->subject instanceof Gallery) {
             return $this->subject;
         }
 
-        if (! method_exists($this->subject, 'getOrCreateGallery')) {
+        if (! method_exists($this->subject, 'gallery')) {
             throw new \RuntimeException('The model must use '.HasGalleries::class.'.');
         }
 
-        return $this->subject->getOrCreateGallery($this->collection);
+        return $this->subject->gallery($this->collection);
     }
 
     #[Computed]
     public function mediaItems()
     {
-        return $this->gallery->getMedia($this->collection);
+        return $this->gallery?->getMedia($this->collection) ?? collect();
     }
 
     #[Computed]
@@ -498,7 +502,7 @@ class GalleryManager extends Component
     #[Computed]
     public function seoCompleteCount(): int
     {
-        return $this->gallery->seoCompleteMediaCount();
+        return $this->gallery?->seoCompleteMediaCount() ?? 0;
     }
 
     public function metaModalName(): string
@@ -565,9 +569,29 @@ class GalleryManager extends Component
         ]);
     }
 
-    private function currentGallery(): Gallery
+    private function currentGallery(bool $create = false): Gallery
     {
-        return $this->gallery;
+        if ($this->subject instanceof Gallery) {
+            return $this->subject;
+        }
+
+        if (! method_exists($this->subject, 'gallery')) {
+            throw new \RuntimeException('The model must use '.HasGalleries::class.'.');
+        }
+
+        if ($create) {
+            if (! method_exists($this->subject, 'getOrCreateGallery')) {
+                throw new \RuntimeException('The model must use '.HasGalleries::class.'.');
+            }
+
+            return $this->subject->getOrCreateGallery($this->collection);
+        }
+
+        $gallery = $this->subject->gallery($this->collection);
+
+        abort_unless($gallery, 404);
+
+        return $gallery;
     }
 
     private function authorizeGalleryAction(string $action): void
@@ -597,5 +621,20 @@ class GalleryManager extends Component
         return $this->mediaItems
             ->filter(fn (SpatieMedia $media): bool => in_array((int) $media->id, $ids, true))
             ->values();
+    }
+
+    private function deleteAttachedGalleryIfEmpty(Gallery $gallery): void
+    {
+        if ($this->subject instanceof Gallery) {
+            return;
+        }
+
+        $gallery->unsetRelation('media');
+
+        if ($gallery->getMedia($gallery->collection_name)->isNotEmpty()) {
+            return;
+        }
+
+        $gallery->delete();
     }
 }

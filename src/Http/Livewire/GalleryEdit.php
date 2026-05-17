@@ -103,16 +103,20 @@ class GalleryEdit extends Component
     {
         $this->authorizeGalleryAction('delete');
 
-        $this->validate([
-            'deletePassword' => ['required', 'string', 'current_password'],
-        ], [
-            'deletePassword.current_password' => __('Lozinka nije ispravna.'),
-        ]);
+        if ($this->deleteRequiresPassword()) {
+            $this->validate([
+                'deletePassword' => ['required', 'string', 'current_password'],
+            ], [
+                'deletePassword.current_password' => __('Lozinka nije ispravna.'),
+            ]);
+        }
 
         $galleryTitle = $this->gallery->displayTitle();
 
         $this->gallery->clearMediaCollection($this->gallery->collection_name);
         $this->gallery->delete();
+
+        $this->dispatch('modal-close', name: 'gallery-delete-confirm');
 
         Flux::toast(
             heading: __('Galerija obrisana'),
@@ -131,6 +135,26 @@ class GalleryEdit extends Component
     public function allowsGalleryAction(string $action): bool
     {
         return GalleryPermissions::allows(auth()->user(), $action);
+    }
+
+    public function deleteRequiresPassword(): bool
+    {
+        $mode = config('gallery.deletion.password_confirmation', 'non_empty');
+
+        if (is_bool($mode)) {
+            return $mode;
+        }
+
+        return match (strtolower((string) $mode)) {
+            'always', 'true', 'on', 'yes', '1' => true,
+            'never', 'false', 'off', 'no', '0' => false,
+            default => $this->galleryMediaCount() > 0,
+        };
+    }
+
+    public function galleryMediaCount(): int
+    {
+        return $this->gallery->getMedia($this->gallery->collection_name)->count();
     }
 
     private function loadGallery(): void

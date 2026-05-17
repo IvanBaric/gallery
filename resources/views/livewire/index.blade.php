@@ -3,8 +3,10 @@
     $cards = [
         ['label' => __('Galerije'), 'value' => number_format($stats['galleries'], 0, ',', ' '), 'icon' => 'photo', 'accent' => 'bg-zinc-900 dark:bg-white'],
         ['label' => __('Fotografije'), 'value' => number_format($stats['images'], 0, ',', ' '), 'icon' => 'squares-2x2', 'accent' => 'bg-emerald-500'],
+        ['label' => __('Prazne'), 'value' => number_format($stats['empty'], 0, ',', ' '), 'icon' => 'archive-box', 'accent' => 'bg-sky-500'],
         ['label' => __('S istaknutom slikom'), 'value' => number_format($stats['with_featured'], 0, ',', ' '), 'icon' => 'star', 'accent' => 'bg-amber-400'],
     ];
+    $regenerationSummary = $this->regenerationSummary;
     $canCreate = $this->allowsGalleryAction('create');
     $canRegenerate = $this->allowsGalleryAction('regenerate');
     $canSettings = $this->allowsGalleryAction('settings');
@@ -20,9 +22,8 @@
             </flux:button>
             @endif
             @if ($canRegenerate)
-            <flux:button type="button" variant="ghost" icon="arrow-path" wire:click="regenerateAll" wire:loading.attr="disabled">
-                <span wire:loading.remove wire:target="regenerateAll">{{ __('Regeneriraj sve') }}</span>
-                <span wire:loading wire:target="regenerateAll">{{ __('Pokrećem regeneriranje...') }}</span>
+            <flux:button type="button" variant="ghost" icon="arrow-path" wire:click="openRegenerateAllConfirmation" wire:loading.attr="disabled">
+                {{ __('Regeneriraj sve') }}
             </flux:button>
             @endif
             @if ($canSettings)
@@ -44,16 +45,16 @@
     </x-admin-ui::stat-grid>
 
     <x-admin-ui::toolbar-stack>
-        <x-admin-ui::filter-tabs :items="$this->filterOptions" :active="$filter" />
-
         <x-admin-ui::toolbar>
             <div class="relative w-full sm:w-80">
                 <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Pretraži galerije...')" />
             </div>
         </x-admin-ui::toolbar>
+
+        <x-admin-ui::filter-tabs :items="$this->filterOptions" :active="$filter" />
     </x-admin-ui::toolbar-stack>
 
-    <x-admin-ui::panel loading loading-target="search,setFilter,regenerateAll,regenerateGallery,saveSettings,createGallery" loading-text="{{ __('Ažuriram pregled galerija...') }}">
+    <x-admin-ui::panel loading loading-target="search,setFilter,regenerateAll,saveSettings,createGallery" loading-text="{{ __('Ažuriram pregled galerija...') }}">
         @if ($this->galleries->isEmpty())
             <x-admin-ui::empty-state
                 :title="filled($search) ? __('Nema rezultata') : __('Još nema galerija')"
@@ -64,7 +65,7 @@
                 </x-slot:icon>
             </x-admin-ui::empty-state>
         @else
-            <div class="admin-list-header grid-cols-[minmax(0,1fr)_7rem_9rem_9rem_10rem_9rem]">
+            <div class="admin-list-header grid-cols-[minmax(0,1fr)_7rem_9rem_9rem_10rem]">
                 <div>{{ mb_strtoupper(__('Galerija')) }}</div>
                 <div class="flex justify-center">
                     <button type="button" wire:click="sortBy('images_count')" class="inline-flex items-center justify-center gap-1 transition duration-150 ease-out hover:text-zinc-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 dark:hover:text-zinc-200">
@@ -91,7 +92,6 @@
                     </button>
                 </div>
                 <div>{{ mb_strtoupper(__('Regenerirano')) }}</div>
-                <div class="text-right">{{ mb_strtoupper(__('Akcije')) }}</div>
             </div>
 
             @foreach ($this->galleries as $gallery)
@@ -102,7 +102,7 @@
                     $lastRegeneratedAt = $gallery->lastRegeneratedAt();
                     $queuedAt = $gallery->regenerationQueuedAt();
                 @endphp
-                <article wire:key="gallery-{{ $gallery->uuid }}" class="admin-list-row grid-cols-[minmax(0,1fr)_7rem_9rem_9rem_10rem_9rem] p-4 sm:p-6">
+                <article wire:key="gallery-{{ $gallery->uuid }}" class="admin-list-row grid-cols-[minmax(0,1fr)_7rem_9rem_9rem_10rem] p-4 sm:p-6">
                     <div class="flex min-w-0 items-center gap-4">
                         <div class="relative h-20 w-28 shrink-0 overflow-hidden rounded-xl bg-zinc-100 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
                             @if ($thumb)
@@ -176,24 +176,6 @@
                         @endif
                     </div>
 
-                    <div class="flex items-center justify-end gap-1">
-                        @if ($canRegenerate)
-                        <flux:tooltip :content="__('Regeneriraj veličine slika')">
-                            <flux:button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                icon="arrow-path"
-                                wire:click="regenerateGallery('{{ $gallery->uuid }}')"
-                                wire:loading.attr="disabled"
-                                wire:target="regenerateGallery('{{ $gallery->uuid }}')"
-                                :disabled="$count === 0"
-                                aria-label="{{ __('Regeneriraj veličine slika') }}"
-                            />
-                        </flux:tooltip>
-                        @endif
-                        <flux:button :href="route('admin.galleries.edit', ['uuid' => $gallery->uuid])" wire:navigate type="button" size="sm" variant="ghost" icon="pencil-square" aria-label="{{ __('Uredi galeriju') }}" />
-                    </div>
                 </article>
             @endforeach
         @endif
@@ -227,6 +209,50 @@
                 </flux:button>
             </div>
         </form>
+    </flux:modal>
+
+    <flux:modal name="gallery-regenerate-all-confirm" class="max-w-xl">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">{{ __('Regenerirati sve galerije?') }}</flux:heading>
+                <flux:subheading class="mt-1 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                    {{ __('Regeneriranje ponovno izrađuje sve definirane veličine slika za postojeće fotografije. Koristite ga nakon promjene dimenzija, crop načina ili kada neka generirana veličina nedostaje. Originalne slike i SEO podaci se ne mijenjaju.') }}
+                </flux:subheading>
+            </div>
+
+            <div class="grid gap-3 sm:grid-cols-3">
+                <div class="rounded-xl bg-zinc-50/70 px-4 py-3 ring-1 ring-zinc-950/5 dark:bg-zinc-900/80 dark:ring-white/10">
+                    <p class="text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">{{ __('Galerije') }}</p>
+                    <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-950 dark:text-white">{{ number_format($regenerationSummary['galleries'], 0, ',', ' ') }}</p>
+                </div>
+                <div class="rounded-xl bg-zinc-50/70 px-4 py-3 ring-1 ring-zinc-950/5 dark:bg-zinc-900/80 dark:ring-white/10">
+                    <p class="text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">{{ __('Fotografije') }}</p>
+                    <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-950 dark:text-white">{{ number_format($regenerationSummary['images'], 0, ',', ' ') }}</p>
+                </div>
+                <div class="rounded-xl bg-zinc-50/70 px-4 py-3 ring-1 ring-zinc-950/5 dark:bg-zinc-900/80 dark:ring-white/10">
+                    <p class="text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">{{ __('Zadnji put') }}</p>
+                    <p class="mt-1 text-sm font-semibold text-zinc-950 dark:text-white">
+                        {{ $regenerationSummary['last_regenerated_at'] ? $regenerationSummary['last_regenerated_at']->diffForHumans() : __('Još nije pokrenuto') }}
+                    </p>
+                </div>
+            </div>
+
+            @if ($regenerationSummary['queued'] > 0)
+                <div class="rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950/30 dark:text-blue-300 dark:ring-blue-900/50">
+                    {{ trans_choice('{1} Jedna galerija je već u obradi.|[2,*] :count galerija je već u obradi.', $regenerationSummary['queued'], ['count' => $regenerationSummary['queued']]) }}
+                </div>
+            @endif
+
+            <div class="flex items-center justify-end gap-2">
+                <flux:modal.close>
+                    <flux:button type="button" variant="ghost">{{ __('Odustani') }}</flux:button>
+                </flux:modal.close>
+                <flux:button type="button" variant="primary" icon="arrow-path" wire:click="regenerateAll" wire:loading.attr="disabled" wire:target="regenerateAll" :disabled="$regenerationSummary['galleries'] === 0">
+                    <span wire:loading.remove wire:target="regenerateAll">{{ __('Pokreni regeneriranje') }}</span>
+                    <span wire:loading wire:target="regenerateAll">{{ __('Pokrećem...') }}</span>
+                </flux:button>
+            </div>
+        </div>
     </flux:modal>
 
     <flux:modal name="gallery-settings" class="max-w-4xl">

@@ -1,11 +1,12 @@
 @php
-    $mediaCount = $gallery->getMedia($gallery->collection_name)->count();
+    $mediaCount = $this->galleryMediaCount();
     $seoCompleteCount = $gallery->seoCompleteMediaCount();
     $lastRegeneratedAt = $gallery->lastRegeneratedAt();
     $queuedAt = $gallery->regenerationQueuedAt();
     $canUpdate = $this->allowsGalleryAction('update');
     $canRegenerate = $this->allowsGalleryAction('regenerate');
     $canDelete = $this->allowsGalleryAction('delete');
+    $deleteRequiresPassword = $this->deleteRequiresPassword();
 @endphp
 
 <x-admin-ui::page>
@@ -135,15 +136,17 @@
             <div>
                 <flux:heading size="lg">{{ __('Izbrisati galeriju?') }}</flux:heading>
                 <flux:subheading class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                    {{ __('Ova radnja trajno briše galeriju i sve pripadajuće fotografije. Za potvrdu unesite svoju lozinku.') }}
+                    @if ($deleteRequiresPassword)
+                        {{ __('Ova radnja trajno briše galeriju i sve pripadajuće fotografije. Za potvrdu unesite svoju lozinku.') }}
+                    @else
+                        {{ __('Ova radnja trajno briše galeriju i sve pripadajuće fotografije. Potvrdite brisanje za nastavak.') }}
+                    @endif
                 </flux:subheading>
             </div>
 
-            <div class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200 dark:bg-red-950/30 dark:text-red-300 dark:ring-red-900/50">
-                {{ __('Nakon brisanja nije moguće vratiti podatke.') }}
-            </div>
-
-            <flux:input wire:model="deletePassword" type="password" :label="__('Lozinka')" autocomplete="current-password" />
+            @if ($deleteRequiresPassword)
+                <flux:input wire:model="deletePassword" type="password" :label="__('Lozinka')" autocomplete="current-password" />
+            @endif
 
             <div class="flex items-center justify-end gap-2">
                 <flux:modal.close>

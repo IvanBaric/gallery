@@ -10,6 +10,7 @@ use IvanBaric\Gallery\Contracts\TenantResolver;
 use IvanBaric\Gallery\Http\Livewire\GalleryEdit;
 use IvanBaric\Gallery\Http\Livewire\GalleryIndex;
 use IvanBaric\Gallery\Http\Livewire\GalleryManager;
+use IvanBaric\Gallery\Http\Livewire\StandaloneGallerySelector;
 use IvanBaric\Gallery\Http\Middleware\EnsureGalleryPermission;
 use Livewire\Livewire;
 
@@ -40,6 +41,7 @@ class GalleryServiceProvider extends ServiceProvider
         Livewire::component('gallery.manager', GalleryManager::class);
         Livewire::component('gallery.index', GalleryIndex::class);
         Livewire::component('gallery.edit', GalleryEdit::class);
+        Livewire::component('gallery.standalone-selector', StandaloneGallerySelector::class);
 
         if ((bool) config('gallery.routes.enabled', true)) {
             $this->loadRoutesFrom(__DIR__.'/../routes/web.php');
