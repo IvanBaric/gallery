@@ -14,7 +14,8 @@
                 {{ __('Dodaj novu galeriju') }}
             </flux:button>
             <flux:button type="button" variant="ghost" icon="arrow-path" wire:click="regenerateAll" wire:loading.attr="disabled">
-                {{ __('Regeneriraj sve') }}
+                <span wire:loading.remove wire:target="regenerateAll">{{ __('Regeneriraj sve') }}</span>
+                <span wire:loading wire:target="regenerateAll">{{ __('Regeneriram sve slike...') }}</span>
             </flux:button>
             <flux:button type="button" variant="ghost" icon="cog-6-tooth" wire:click="openSettings">
                 {{ __('Postavke') }}
@@ -40,7 +41,7 @@
         </x-admin-ui::toolbar>
     </x-admin-ui::toolbar-stack>
 
-    <x-admin-ui::panel loading loading-target="search,regenerateAll,saveSettings,createGallery" loading-text="{{ __('Osvježavam galerije') }}">
+    <x-admin-ui::panel loading loading-target="search,regenerateAll,saveSettings,createGallery" loading-text="{{ __('Ažuriram pregled galerija...') }}">
         @if ($this->galleries->isEmpty())
             <x-admin-ui::empty-state
                 :title="filled($search) ? __('Nema rezultata') : __('Još nema galerija')"

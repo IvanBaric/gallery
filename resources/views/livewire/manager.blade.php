@@ -10,7 +10,7 @@
     $featuredId = $gallery->featured_media_id ?: $mediaItems->first()?->id;
 @endphp
 
-<x-admin-ui::panel loading loading-target="uploads,saveUploads,deleteMedia,reorderMedia,setFeaturedMedia,saveMediaMeta,regenerateGallery" loading-text="{{ __('Osvježavam galeriju') }}">
+<x-admin-ui::panel loading loading-target="uploads,saveUploads,deleteMedia,reorderMedia,setFeaturedMedia,saveMediaMeta,regenerateGallery" loading-text="{{ __('Spremam promjene u galeriji...') }}">
     <x-admin-ui::panel-header :title="$panelTitle" :description="$panelDescription">
         <x-slot:actions>
             <div x-data class="flex flex-wrap items-center justify-end gap-2">
@@ -20,7 +20,7 @@
                     </flux:button>
                     <div wire:loading.flex wire:target="uploads" class="items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                         <flux:icon icon="arrow-path" class="size-3.5 animate-spin" />
-                        <span>{{ __('Učitavanje...') }}</span>
+                        <span>{{ __('Dodajem slike u galeriju...') }}</span>
                     </div>
                 </div>
 
@@ -35,6 +35,10 @@
                 <flux:tooltip :content="__('Ponovno generiraj veličine slika za ovu galeriju')">
                     <flux:button type="button" size="sm" variant="ghost" icon="arrow-path" wire:click="regenerateGallery" wire:loading.attr="disabled" />
                 </flux:tooltip>
+                <div wire:loading.flex wire:target="regenerateGallery" class="items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                    <flux:icon icon="arrow-path" class="size-3.5 animate-spin" />
+                    <span>{{ __('Regeneriram veličine slika...') }}</span>
+                </div>
             </div>
         </x-slot:actions>
     </x-admin-ui::panel-header>
