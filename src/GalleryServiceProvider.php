@@ -10,6 +10,7 @@ use IvanBaric\Gallery\Contracts\TenantResolver;
 use IvanBaric\Gallery\Http\Livewire\GalleryEdit;
 use IvanBaric\Gallery\Http\Livewire\GalleryIndex;
 use IvanBaric\Gallery\Http\Livewire\GalleryManager;
+use IvanBaric\Gallery\Http\Middleware\EnsureGalleryPermission;
 use Livewire\Livewire;
 
 class GalleryServiceProvider extends ServiceProvider
@@ -33,6 +34,8 @@ class GalleryServiceProvider extends ServiceProvider
     {
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'gallery');
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
+
+        $this->app['router']->aliasMiddleware('gallery.permission', EnsureGalleryPermission::class);
 
         Livewire::component('gallery.manager', GalleryManager::class);
         Livewire::component('gallery.index', GalleryIndex::class);

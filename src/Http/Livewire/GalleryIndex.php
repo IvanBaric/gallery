@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace IvanBaric\Gallery\Http\Livewire;
 
 use Flux\Flux;
-use Illuminate\Support\Facades\Artisan;
+use Illuminate\Database\Eloquent\Builder;
+use IvanBaric\Gallery\Jobs\RegenerateGalleryConversions;
 use IvanBaric\Gallery\Models\Gallery;
+use IvanBaric\Gallery\Support\GalleryPermissions;
 use IvanBaric\Gallery\Support\GallerySettings;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
@@ -22,15 +24,32 @@ class GalleryIndex extends Component
 
     public string $sortDirection = 'desc';
 
+    public string $filter = 'all';
+
     public array $sizeSettings = [];
+
+    public array $createForm = [
+        'title' => '',
+    ];
 
     public function mount(): void
     {
+        $this->authorizeGalleryAction('view');
         $this->loadSizeSettings();
     }
 
     public function updatedSearch(): void
     {
+        $this->resetPage();
+    }
+
+    public function setFilter(string $filter): void
+    {
+        if (! array_key_exists($filter, $this->filterOptions)) {
+            return;
+        }
+
+        $this->filter = $filter;
         $this->resetPage();
     }
 
@@ -52,22 +71,52 @@ class GalleryIndex extends Component
 
     public function openSettings(): void
     {
+        $this->authorizeGalleryAction('settings');
         $this->loadSizeSettings();
         $this->dispatch('modal-show', name: 'gallery-settings');
     }
 
+    public function openCreateGalleryModal(): void
+    {
+        $this->authorizeGalleryAction('create');
+        $this->createForm = ['title' => ''];
+        $this->resetValidation('createForm.title');
+        $this->dispatch('modal-show', name: 'gallery-create');
+    }
+
     public function createGallery(): void
     {
+        $this->authorizeGalleryAction('create');
+
+        $validated = $this->validate([
+            'createForm.title' => ['required', 'string', 'max:180'],
+        ], [
+            'createForm.title.required' => __('Unesite naziv galerije.'),
+            'createForm.title.max' => __('Naziv galerije može imati najviše :max znakova.'),
+        ], [
+            'createForm.title' => __('naziv galerije'),
+        ]);
+
         $gallery = Gallery::query()->create([
-            'title' => __('Nova galerija'),
+            'title' => trim((string) $validated['createForm']['title']),
             'collection_name' => 'images',
         ]);
+
+        $this->dispatch('modal-close', name: 'gallery-create');
+
+        Flux::toast(
+            heading: __('Galerija kreirana'),
+            text: __('Nova galerija ":title" je spremna za dodavanje slika.', ['title' => $gallery->displayTitle()]),
+            variant: 'success',
+        );
 
         $this->redirectRoute('admin.galleries.edit', ['uuid' => $gallery->uuid], navigate: true);
     }
 
     public function openGallery(string $uuid): void
     {
+        $this->authorizeGalleryAction('view');
+
         $exists = Gallery::query()
             ->forCurrentTenant()
             ->where('uuid', $uuid)
@@ -80,6 +129,8 @@ class GalleryIndex extends Component
 
     public function saveSettings(): void
     {
+        $this->authorizeGalleryAction('settings');
+
         $normalized = [];
 
         foreach ($this->sizeSettings as $name => $size) {
@@ -99,8 +150,10 @@ class GalleryIndex extends Component
 
     public function regenerateGallery(string $uuid): void
     {
+        $this->authorizeGalleryAction('regenerate');
+
         $gallery = Gallery::query()->forCurrentTenant()->where('uuid', $uuid)->firstOrFail();
-        $ids = $gallery->getMedia($gallery->collection_name)->pluck('id')->map(fn ($id): string => (string) $id)->all();
+        $ids = $gallery->getMedia($gallery->collection_name)->pluck('id')->map(fn ($id): int => (int) $id)->all();
 
         if ($ids === []) {
             Flux::toast(text: __('Galerija nema fotografija za regeneriranje.'), variant: 'warning');
@@ -108,49 +161,57 @@ class GalleryIndex extends Component
             return;
         }
 
-        Artisan::call('media-library:regenerate', [
-            'modelType' => Gallery::class,
-            '--ids' => $ids,
-            '--with-responsive-images' => (bool) config('gallery.conversions.generate_responsive_images', false),
-        ]);
-
-        $gallery->touch();
+        $gallery->markRegenerationQueued(count($ids));
+        RegenerateGalleryConversions::dispatch((int) $gallery->getKey(), $ids);
 
         Flux::toast(
-            heading: __('Regeneriranje završeno'),
-            text: $gallery->displayTitle(),
+            heading: __('Regeneriranje pokrenuto'),
+            text: __('Galerija ":title" je poslana u obradu.', ['title' => $gallery->displayTitle()]),
             variant: 'success',
         );
     }
 
     public function regenerateAll(): void
     {
-        $ids = Gallery::query()
+        $this->authorizeGalleryAction('regenerate');
+
+        $galleries = Gallery::query()
             ->forCurrentTenant()
             ->with('media')
             ->get()
-            ->flatMap(fn (Gallery $gallery) => $gallery->getMedia($gallery->collection_name)->pluck('id'))
-            ->map(fn ($id): string => (string) $id)
-            ->values()
-            ->all();
+            ->filter(fn (Gallery $gallery): bool => $gallery->getMedia($gallery->collection_name)->isNotEmpty());
 
-        if ($ids === []) {
+        if ($galleries->isEmpty()) {
             Flux::toast(text: __('Nema fotografija za regeneriranje.'), variant: 'warning');
 
             return;
         }
 
-        Artisan::call('media-library:regenerate', [
-            'modelType' => Gallery::class,
-            '--ids' => $ids,
-            '--with-responsive-images' => (bool) config('gallery.conversions.generate_responsive_images', false),
-        ]);
+        foreach ($galleries as $gallery) {
+            $ids = $gallery->getMedia($gallery->collection_name)->pluck('id')->map(fn ($id): int => (int) $id)->all();
+            $gallery->markRegenerationQueued(count($ids));
+            RegenerateGalleryConversions::dispatch((int) $gallery->getKey(), $ids);
+        }
 
         Flux::toast(
-            heading: __('Regeneriranje završeno'),
-            text: __('Sve galerije su obrađene.'),
+            heading: __('Regeneriranje pokrenuto'),
+            text: trans_choice('{1} Jedna galerija je poslana u obradu.|[2,*] :count galerija je poslano u obradu.', $galleries->count(), ['count' => $galleries->count()]),
             variant: 'success',
         );
+    }
+
+    #[Computed]
+    public function filterOptions(): array
+    {
+        $stats = $this->stats;
+
+        return [
+            'all' => ['label' => __('Sve'), 'count' => $stats['galleries']],
+            'standalone' => ['label' => __('Samostalne'), 'count' => $stats['standalone']],
+            'vehicles' => ['label' => __('Vozila'), 'count' => $stats['vehicles']],
+            'empty' => ['label' => __('Prazne'), 'count' => $stats['empty']],
+            'without_featured' => ['label' => __('Bez istaknute slike'), 'count' => $stats['without_featured']],
+        ];
     }
 
     #[Computed]
@@ -169,6 +230,10 @@ class GalleryIndex extends Component
                         ->orWhere('collection_name', 'like', $search);
                 });
             })
+            ->when($this->filter === 'standalone', fn (Builder $query): Builder => $query->whereNull('galleryable_type'))
+            ->when($this->filter === 'vehicles', fn (Builder $query): Builder => $this->scopeVehicles($query))
+            ->when($this->filter === 'empty', fn (Builder $query): Builder => $query->whereDoesntHave('media'))
+            ->when($this->filter === 'without_featured', fn (Builder $query): Builder => $query->whereNull('featured_media_id')->has('media'))
             ->orderBy($this->sortField, $this->sortDirection)
             ->latest('id')
             ->simplePaginate(18);
@@ -183,6 +248,10 @@ class GalleryIndex extends Component
             'galleries' => $galleries->count(),
             'images' => $galleries->sum(fn (Gallery $gallery): int => $gallery->getMedia($gallery->collection_name)->count()),
             'with_featured' => $galleries->whereNotNull('featured_media_id')->count(),
+            'standalone' => $galleries->whereNull('galleryable_type')->count(),
+            'vehicles' => $galleries->filter(fn (Gallery $gallery): bool => class_basename((string) $gallery->galleryable_type) === 'Car')->count(),
+            'empty' => $galleries->filter(fn (Gallery $gallery): bool => $gallery->getMedia($gallery->collection_name)->isEmpty())->count(),
+            'without_featured' => $galleries->filter(fn (Gallery $gallery): bool => blank($gallery->featured_media_id) && $gallery->getMedia($gallery->collection_name)->isNotEmpty())->count(),
         ];
     }
 
@@ -191,8 +260,32 @@ class GalleryIndex extends Component
         return view('gallery::livewire.index')->title(__('Galerija'));
     }
 
+    public function allowsGalleryAction(string $action): bool
+    {
+        return GalleryPermissions::allows(auth()->user(), $action);
+    }
+
     private function loadSizeSettings(): void
     {
         $this->sizeSettings = GallerySettings::imageSizes();
+    }
+
+    private function authorizeGalleryAction(string $action): void
+    {
+        GalleryPermissions::authorize($action);
+    }
+
+    private function scopeVehicles(Builder $query): Builder
+    {
+        if (class_exists('\\App\\Models\\Car')) {
+            $car = new \App\Models\Car();
+
+            return $query->whereIn('galleryable_type', array_unique([
+                $car->getMorphClass(),
+                \App\Models\Car::class,
+            ]));
+        }
+
+        return $query->where('galleryable_type', 'like', '%Car');
     }
 }

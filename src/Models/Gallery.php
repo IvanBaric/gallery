@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use IvanBaric\Gallery\Contracts\TenantResolver;
 use IvanBaric\Gallery\Exceptions\TenantNotResolvedException;
@@ -95,6 +96,61 @@ class Gallery extends Model implements HasMedia
         return class_basename($owner).' #'.$owner->getKey();
     }
 
+    public function ownerTypeLabel(): string
+    {
+        if (! $this->galleryable_type) {
+            return __('Samostalna');
+        }
+
+        return match (class_basename((string) $this->galleryable_type)) {
+            'Car' => __('Vozilo'),
+            'VehiclePurchaseRequest' => __('Otkup'),
+            default => class_basename((string) $this->galleryable_type),
+        };
+    }
+
+    public function lastRegeneratedAt(): ?Carbon
+    {
+        return $this->customPropertyDate('last_regenerated_at');
+    }
+
+    public function regenerationQueuedAt(): ?Carbon
+    {
+        return $this->customPropertyDate('regeneration_queued_at');
+    }
+
+    public function markRegenerationQueued(?int $mediaCount = null): void
+    {
+        $this->mergeCustomProperties([
+            'regeneration_queued_at' => now()->toISOString(),
+            'regeneration_queued_media_count' => $mediaCount,
+        ]);
+    }
+
+    public function markRegenerated(int $mediaCount): void
+    {
+        $this->mergeCustomProperties([
+            'last_regenerated_at' => now()->toISOString(),
+            'last_regenerated_media_count' => $mediaCount,
+            'regeneration_queued_at' => null,
+            'regeneration_queued_media_count' => null,
+        ]);
+    }
+
+    public function seoCompleteMediaCount(): int
+    {
+        return $this
+            ->getMedia($this->collection_name)
+            ->filter(fn (BaseMedia $media): bool => $this->mediaHasSeo($media))
+            ->count();
+    }
+
+    public function mediaHasSeo(BaseMedia $media): bool
+    {
+        return (bool) $media->getCustomProperty('is_decorative', false)
+            || filled($media->getCustomProperty('alt'));
+    }
+
     public function featuredOrFirstMedia(): ?BaseMedia
     {
         if ($this->featured_media_id) {
@@ -173,5 +229,27 @@ class Gallery extends Model implements HasMedia
             $gallery->setAttribute((string) config('gallery.tenancy.uuid_column', 'tenant_uuid'), $resolver->uuid());
             $gallery->setAttribute((string) config('gallery.tenancy.type_column', 'tenant_type'), $resolver->type());
         });
+    }
+
+    private function customPropertyDate(string $key): ?Carbon
+    {
+        $value = $this->custom_properties[$key] ?? null;
+
+        if (! is_string($value) || blank($value)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function mergeCustomProperties(array $properties): void
+    {
+        $this->forceFill([
+            'custom_properties' => array_merge($this->custom_properties ?? [], $properties),
+        ])->save();
     }
 }

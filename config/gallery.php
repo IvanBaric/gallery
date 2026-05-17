@@ -5,6 +5,7 @@ declare(strict_types=1);
 use IvanBaric\Gallery\Models\Gallery;
 use IvanBaric\Gallery\Models\Media;
 use IvanBaric\Gallery\Resolvers\NullTenantResolver;
+use IvanBaric\Gallery\Support\GalleryPermissions;
 
 return [
     'models' => [
@@ -30,6 +31,12 @@ return [
         'media_path' => 'gallery/media',
         'media_route_name' => 'gallery.media.show',
         'media_middleware' => ['web', 'auth'],
+    ],
+
+    'permissions' => [
+        'enabled' => env('GALLERY_PERMISSIONS_ENABLED', false),
+        'actions' => GalleryPermissions::defaults(),
+        'groups' => GalleryPermissions::groups(),
     ],
 
     'disk' => env('GALLERY_DISK', env('MEDIA_DISK', 'public')),

@@ -5,7 +5,12 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\Route;
 use IvanBaric\Gallery\Http\Controllers\MediaController;
 
-Route::middleware(config('gallery.routes.middleware', ['web', 'auth', 'verified']))
+$adminMiddleware = array_values(array_filter(array_merge(
+    (array) config('gallery.routes.middleware', ['web', 'auth', 'verified']),
+    ['gallery.permission:view'],
+)));
+
+Route::middleware($adminMiddleware)
     ->prefix(config('gallery.routes.prefix', 'app'))
     ->name(config('gallery.routes.name', 'admin.galleries.'))
     ->group(function (): void {

@@ -1,60 +1,52 @@
 # Gallery
 
-Reusable Laravel gallery manager built on top of Spatie Media Library, Livewire 4, Flux UI, and `ivanbaric/admin-ui`.
+Reusable Laravel gallery package built on top of Spatie Media Library, Livewire, Flux UI and `ivanbaric/admin-ui`.
 
-The package gives an admin application a shared gallery layer that can be attached to any Eloquent model. It keeps images in one gallery model, supports SEO metadata, featured images, ordering, protected media access, WordPress-like image sizes, settings, regeneration, and publishable views.
+The package is intentionally generic. It can be used for any model or project that needs galleries, image uploads, image metadata, generated conversions, admin management and a polished public lightbox.
+
+## What The Package Contains
+
+- Gallery model with optional owner relation to any Eloquent model.
+- Custom Media model with tenant-aware access helpers and alt text helper.
+- `HasGalleries` trait for attaching galleries to existing models.
+- Livewire admin manager component for uploads, ordering, featured image, SEO metadata and deletion.
+- Admin gallery index and edit screens.
+- Image size settings with WordPress-like defaults.
+- Queued or synchronous conversion regeneration.
+- Protected media route.
+- Optional tenancy support.
+- Optional permission layer for view, create, update, upload, SEO, regenerate, settings and delete actions.
+- Public `<x-gallery::lightbox>` component with thumbnails, keyboard navigation, swipe gestures, counter, modal view and empty state.
 
 ## Requirements
 
 - PHP 8.2+
-- Laravel 11, 12, or 13
-- Livewire 4
+- Laravel 11, 12 or 13
+- Livewire
 - Flux UI
 - Spatie Media Library 11
-- `ivanbaric/admin-ui`
+- `ivanbaric/admin-ui` for the admin screens
 
 ## Installation
 
-Install through Composer:
-
 ```bash
 composer require ivanbaric/gallery
-```
-
-Run migrations:
-
-```bash
 php artisan migrate
 ```
 
 Laravel auto-discovers the service provider.
 
-## Configuration
-
-Publish the configuration when an application needs custom rules, image sizes, routes, tenancy, or model overrides:
+Publish the config when the application needs custom routes, validation, conversions, tenancy or permissions:
 
 ```bash
 php artisan vendor:publish --tag=gallery-config
 ```
 
-Common options live in `config/gallery.php`:
+Publish views only when you want to override package markup:
 
-- `models.gallery` and `models.media` override the package models.
-- `validation` defines default max files, file size, file extensions, and dimensions.
-- `contexts` override validation per use case, such as vehicles or purchase requests.
-- `sizes` defines generated image conversions.
-- `tenancy` enables current-tenant filtering for galleries and media.
-- `routes` controls the admin gallery index and protected media route.
-
-The package can register its media model automatically:
-
-```php
-'media' => [
-    'register_media_model' => true,
-],
+```bash
+php artisan vendor:publish --tag=gallery-views
 ```
-
-If the host application already configures Spatie Media Library directly, set that option to `false` and point `media-library.media_model` to your own class.
 
 ## Tailwind
 
@@ -70,22 +62,20 @@ For a local path repository:
 @source '../../packages/ivanbaric/gallery/resources/views/**/*.blade.php';
 ```
 
-If the application uses `ivanbaric/admin-ui` from a local path, keep its CSS import and source entries as well.
-
 ## Model Setup
 
-Add the trait to any model that needs galleries:
+Add the trait to any model that owns galleries:
 
 ```php
 use IvanBaric\Gallery\Concerns\HasGalleries;
 
-class Car extends Model implements HasMedia
+class Product extends Model implements HasMedia
 {
     use HasGalleries;
 }
 ```
 
-The trait adds:
+The trait provides:
 
 - `galleries()`
 - `gallery($collection = 'images')`
@@ -96,88 +86,195 @@ The trait adds:
 - `galleryImageUrl($collection = 'images', $conversion = 'large')`
 - `migrateMediaCollectionToGallery($collection = 'images')`
 
-The helper methods keep a fallback to legacy Spatie media collections so existing screens can be migrated gradually.
+## Admin Manager
 
-## Blade Manager
-
-Render a gallery anywhere in an admin form:
+Render the reusable admin manager anywhere:
 
 ```blade
 <x-gallery::manager
-    :model="$car"
+    :model="$model"
     collection="images"
-    context="vehicle"
+    context="default"
     :title="__('Fotografije')"
-    :description="__('Upravljajte fotografijama, SEO podacima, redoslijedom i istaknutom slikom.')"
-/>
-```
-
-For a purchase request:
-
-```blade
-<x-gallery::manager
-    :model="$purchaseRequest"
-    collection="images"
-    context="purchase_request"
-    :title="__('Galerija vozila')"
+    :description="__('Dodajte slike, uredite SEO podatke, promijenite redoslijed i istaknutu sliku.')"
 />
 ```
 
 The manager supports:
 
-- Uploading multiple images with configurable validation.
-- Drag-and-drop ordering through Livewire sorting.
+- Multiple image uploads with configurable validation.
+- Drag-and-drop ordering.
 - Featured image selection.
-- SEO metadata: alt text, title, caption, description, credit, source URL, license, and decorative image flag.
-- Delete confirmation modal.
-- Regenerating conversions for the current gallery.
+- Bulk selection, bulk deletion and selected-image regeneration.
+- SEO metadata per image: alt text, title, caption, description, credit, source URL, license and decorative image flag.
+- Delete confirmation modals.
+- Gallery conversion regeneration.
 
-## Admin Gallery Index
+## Public Lightbox
 
-The package registers an admin index route by default:
+Use the lightbox on any public or private page:
+
+```blade
+<x-gallery::lightbox
+    :media="$model->galleryMedia('images')"
+    :title="$model->title"
+    :featured="$model->is_featured ?? false"
+    :fallback-alt="$model->title"
+/>
+```
+
+You can also pass a prepared array:
+
+```blade
+<x-gallery::lightbox
+    :images="[
+        ['thumb' => $thumbUrl, 'main' => $mainUrl, 'lightbox' => $fullUrl, 'alt' => 'Opis slike'],
+    ]"
+    title="Galerija"
+/>
+```
+
+Main options:
+
+- `media` or `images`
+- `title`
+- `featured` and `featuredLabel`
+- `fallbackAlt`
+- `mainConversion`, `lightboxConversion`, `thumbnailConversion`
+- `showFeaturedBadge`
+- `showZoomHint`
+- `showCounter`
+- `showThumbnails`
+- `showLightboxTitle`
+- `showEmptyState`
+- `emptyTitle` and `emptyDescription`
+- `openLabel`, `closeLabel`, `previousLabel`, `nextLabel`, `thumbnailLabel`
+- `scrollPreviousLabel`, `scrollNextLabel`, `dialogLabel`, `zoomLabel`
+- `aspect`, `mainImageClass`, `thumbnailImageClass`
+
+The component includes the full interaction set: main image preview, hover zoom hint, modal lightbox, close button, previous/next arrows, keyboard navigation, swipe navigation, counter, thumbnail strip and scroll controls.
+
+## Admin Routes
+
+By default the package registers:
 
 ```text
 GET /app/galleries
+GET /app/galleries/{uuid}/edit
 ```
 
-The route name is:
+Route names:
 
 ```text
 admin.galleries.index
+admin.galleries.edit
 ```
 
-This screen lists galleries from newest to oldest, exposes global settings, and can regenerate conversions.
+You can change route prefix, path, name and middleware in `config/gallery.php`.
 
 ## Image Sizes
 
-Default sizes are intentionally close to WordPress conventions:
+Default conversions:
 
 - `thumbnail` 150x150 crop
+- `thumb` 600x400 crop
 - `medium` 300x300 contain
 - `medium_large` 768px wide
 - `large` 1024x1024 contain
 - `xlarge` 1536x1536 contain
 - `admin_thumb` 600x400 crop
 
-The package also includes `thumb` as a practical 600x400 compatibility conversion for admin and catalog cards.
+The admin settings screen can change labels, dimensions, fit mode and enabled state. After changing sizes, regenerate existing images.
 
 ## Regeneration
 
-Regenerate from the admin UI, or use Spatie Media Library directly:
+Regeneration can be started from the admin UI or through Spatie:
 
 ```bash
 php artisan media-library:regenerate "IvanBaric\\Gallery\\Models\\Gallery"
 ```
 
-## Migrating Existing Media
+The package also includes a queued job for regenerating a whole gallery or selected media.
 
-If an application already stores images directly on a model, migrate them into galleries:
+## Permissions
 
-```bash
-php artisan gallery:migrate-model-media "App\\Models\\Car" images
+Permissions are optional so the package can be dropped into simple projects without access-control setup.
+
+Enable enforcement:
+
+```env
+GALLERY_PERMISSIONS_ENABLED=true
 ```
 
-The command moves existing media rows to the package gallery model while preserving the media files.
+Default permission codes:
+
+```php
+gallery.view
+gallery.create
+gallery.update
+gallery.upload
+gallery.seo
+gallery.regenerate
+gallery.settings
+gallery.delete
+```
+
+For `ivanbaric/velora`, register the permission group in the host application's `config/velora.php`:
+
+```php
+use IvanBaric\Gallery\Support\GalleryPermissions;
+
+'permissions' => [
+    // existing groups...
+    ...GalleryPermissions::groups(),
+],
+```
+
+Assign permissions to roles:
+
+```php
+'permissions' => [
+    ...array_values(GalleryPermissions::defaults()),
+],
+```
+
+Or assign only selected actions:
+
+```php
+'permissions' => [
+    GalleryPermissions::VIEW,
+    GalleryPermissions::UPLOAD,
+    GalleryPermissions::SEO,
+],
+```
+
+When enabled, the package checks permissions on:
+
+- Admin gallery routes through `gallery.permission:view`.
+- Livewire actions such as create, upload, update, SEO edit, regenerate, settings save and delete.
+- Visible admin controls, so users only see actions they can use.
+
+You can override action codes in `config/gallery.php`:
+
+```php
+'permissions' => [
+    'enabled' => true,
+    'actions' => [
+        'view' => 'media.view',
+        'upload' => 'media.upload',
+    ],
+],
+```
+
+## Validation
+
+Default upload validation:
+
+- Maximum files per gallery: 30
+- Maximum file size: 3 MB
+- Extensions: JPG, JPEG, PNG, WEBP
+
+Override globally in `validation`, or per use case in `contexts`.
 
 ## Tenancy
 
@@ -196,17 +293,18 @@ The resolver must implement:
 IvanBaric\Gallery\Contracts\TenantResolver
 ```
 
-When tenancy is enabled, gallery queries and media access are scoped to the current tenant.
+When enabled, gallery queries and protected media access are scoped to the current tenant.
 
-## Publishing Views
+## Migrating Existing Media
 
-Publish views when a project needs to customize markup:
+If an application already stores images directly on a model, migrate them into galleries:
 
 ```bash
-php artisan vendor:publish --tag=gallery-views
+php artisan gallery:migrate-model-media "App\\Models\\Product" images
 ```
+
+The command moves media rows to the package gallery model while preserving files.
 
 ## License
 
 MIT
-

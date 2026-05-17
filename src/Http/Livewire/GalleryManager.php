@@ -6,11 +6,12 @@ namespace IvanBaric\Gallery\Http\Livewire;
 
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Validation\ValidationException;
 use IvanBaric\Gallery\Concerns\HasGalleries;
+use IvanBaric\Gallery\Jobs\RegenerateGalleryConversions;
 use IvanBaric\Gallery\Models\Gallery;
 use IvanBaric\Gallery\Models\Media;
+use IvanBaric\Gallery\Support\GalleryPermissions;
 use IvanBaric\Gallery\Support\GallerySettings;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
@@ -39,6 +40,11 @@ class GalleryManager extends Component
     /** @var array<int, TemporaryUploadedFile> */
     public array $uploads = [];
 
+    public bool $selectMode = false;
+
+    /** @var array<int, int|string> */
+    public array $selectedMediaIds = [];
+
     public ?int $pendingDeleteMediaId = null;
 
     public ?int $editingMediaId = null;
@@ -64,6 +70,8 @@ class GalleryManager extends Component
         ?string $description = null,
         bool $migrateLegacy = true,
     ): void {
+        $this->authorizeGalleryAction('view');
+
         $this->modelClass = $model::class;
         $this->modelKey = $model->getKey();
         $this->collection = $collection;
@@ -85,6 +93,8 @@ class GalleryManager extends Component
 
     public function saveUploads(): void
     {
+        $this->authorizeGalleryAction('upload');
+
         if ($this->uploads === []) {
             return;
         }
@@ -122,8 +132,125 @@ class GalleryManager extends Component
         );
     }
 
+    public function toggleSelectionMode(): void
+    {
+        if ($this->mediaItems->isEmpty()) {
+            return;
+        }
+
+        $this->selectMode = ! $this->selectMode;
+
+        if (! $this->selectMode) {
+            $this->selectedMediaIds = [];
+        }
+    }
+
+    public function selectAllMedia(): void
+    {
+        $this->selectMode = true;
+        $this->selectedMediaIds = $this->mediaItems
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+    }
+
+    public function clearSelectedMedia(): void
+    {
+        $this->selectedMediaIds = [];
+    }
+
+    public function updatedSelectedMediaIds(): void
+    {
+        $this->selectedMediaIds = collect($this->selectedMediaIds)
+            ->map(fn ($id): int => (int) $id)
+            ->intersect($this->mediaItems->pluck('id')->map(fn ($id): int => (int) $id))
+            ->values()
+            ->all();
+    }
+
+    public function confirmDeleteSelectedMedia(): void
+    {
+        $this->authorizeGalleryAction('delete');
+
+        if ($this->selectedMediaCount <= 0) {
+            Flux::toast(text: __('Odaberite barem jednu fotografiju.'), variant: 'warning');
+
+            return;
+        }
+
+        $this->dispatch('modal-show', name: $this->bulkDeleteModalName());
+    }
+
+    public function deleteSelectedMedia(): void
+    {
+        $this->authorizeGalleryAction('delete');
+
+        $media = $this->selectedMedia();
+
+        if ($media->isEmpty()) {
+            $this->dispatch('modal-close', name: $this->bulkDeleteModalName());
+            $this->selectedMediaIds = [];
+
+            return;
+        }
+
+        $gallery = $this->currentGallery();
+        $featuredDeleted = $media->contains(fn (SpatieMedia $item): bool => (int) $gallery->featured_media_id === (int) $item->id);
+
+        foreach ($media as $item) {
+            $item->delete();
+        }
+
+        if ($featuredDeleted) {
+            $gallery->forceFill(['featured_media_id' => null])->save();
+        } else {
+            $gallery->touch();
+        }
+
+        $count = $media->count();
+        $this->selectedMediaIds = [];
+        $this->selectMode = false;
+        $this->dispatch('modal-close', name: $this->bulkDeleteModalName());
+        unset($this->gallery, $this->mediaItems);
+
+        Flux::toast(
+            heading: __('Fotografije obrisane'),
+            text: trans_choice('{1} Obrisana je :count fotografija.|[2,*] Obrisano je :count fotografija.', $count, ['count' => $count]),
+            variant: 'success',
+        );
+    }
+
+    public function regenerateSelectedMedia(): void
+    {
+        $this->authorizeGalleryAction('regenerate');
+
+        $ids = $this->selectedMedia()
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
+        if ($ids === []) {
+            Flux::toast(text: __('Odaberite barem jednu fotografiju.'), variant: 'warning');
+
+            return;
+        }
+
+        $gallery = $this->currentGallery();
+        $gallery->markRegenerationQueued(count($ids));
+        RegenerateGalleryConversions::dispatch((int) $gallery->getKey(), $ids);
+        unset($this->gallery, $this->mediaItems);
+
+        Flux::toast(
+            heading: __('Regeneriranje pokrenuto'),
+            text: trans_choice('{1} Jedna odabrana fotografija je poslana u obradu.|[2,*] :count odabranih fotografija je poslano u obradu.', count($ids), ['count' => count($ids)]),
+            variant: 'success',
+        );
+    }
+
     public function reorderMedia(int $mediaId, int $position): void
     {
+        $this->authorizeGalleryAction('update');
+
         $gallery = $this->currentGallery()->fresh();
 
         $ids = $gallery->getMedia($this->collection)
@@ -145,6 +272,8 @@ class GalleryManager extends Component
 
     public function setFeaturedMedia(int $mediaId): void
     {
+        $this->authorizeGalleryAction('update');
+
         $media = $this->mediaInGallery($mediaId);
         $gallery = $this->currentGallery();
 
@@ -160,6 +289,8 @@ class GalleryManager extends Component
 
     public function editMedia(int $mediaId): void
     {
+        $this->authorizeGalleryAction('seo');
+
         $media = $this->mediaInGallery($mediaId);
 
         $this->editingMediaId = $media->id;
@@ -179,6 +310,8 @@ class GalleryManager extends Component
 
     public function saveMediaMeta(): void
     {
+        $this->authorizeGalleryAction('seo');
+
         if (! $this->editingMediaId) {
             return;
         }
@@ -224,6 +357,8 @@ class GalleryManager extends Component
 
     public function confirmDeleteMedia(int $mediaId): void
     {
+        $this->authorizeGalleryAction('delete');
+
         $media = $this->mediaInGallery($mediaId);
         $this->pendingDeleteMediaId = $media->id;
         $this->dispatch('modal-show', name: $this->deleteModalName());
@@ -237,6 +372,8 @@ class GalleryManager extends Component
 
     public function deleteMedia(): void
     {
+        $this->authorizeGalleryAction('delete');
+
         if (! $this->pendingDeleteMediaId) {
             return;
         }
@@ -266,7 +403,9 @@ class GalleryManager extends Component
 
     public function regenerateGallery(): void
     {
-        $ids = $this->mediaItems->pluck('id')->map(fn ($id): string => (string) $id)->all();
+        $this->authorizeGalleryAction('regenerate');
+
+        $ids = $this->mediaItems->pluck('id')->map(fn ($id): int => (int) $id)->all();
 
         if ($ids === []) {
             Flux::toast(text: __('Galerija nema fotografija za regeneriranje.'), variant: 'warning');
@@ -274,15 +413,14 @@ class GalleryManager extends Component
             return;
         }
 
-        Artisan::call('media-library:regenerate', [
-            'modelType' => Gallery::class,
-            '--ids' => $ids,
-            '--with-responsive-images' => (bool) config('gallery.conversions.generate_responsive_images', false),
-        ]);
+        $gallery = $this->currentGallery();
+        $gallery->markRegenerationQueued(count($ids));
+        RegenerateGalleryConversions::dispatch((int) $gallery->getKey(), $ids);
+        unset($this->gallery, $this->mediaItems);
 
         Flux::toast(
-            heading: __('Regeneriranje završeno'),
-            text: __('Veličine slika su ponovno generirane.'),
+            heading: __('Regeneriranje pokrenuto'),
+            text: __('Galerija je poslana u obradu.'),
             variant: 'success',
         );
     }
@@ -351,6 +489,18 @@ class GalleryManager extends Component
         return max(0, $this->maxFiles - $this->mediaItems->count());
     }
 
+    #[Computed]
+    public function selectedMediaCount(): int
+    {
+        return $this->selectedMedia()->count();
+    }
+
+    #[Computed]
+    public function seoCompleteCount(): int
+    {
+        return $this->gallery->seoCompleteMediaCount();
+    }
+
     public function metaModalName(): string
     {
         return 'gallery-media-meta-'.$this->modalKey;
@@ -361,9 +511,19 @@ class GalleryManager extends Component
         return 'gallery-media-delete-'.$this->modalKey;
     }
 
+    public function bulkDeleteModalName(): string
+    {
+        return 'gallery-media-bulk-delete-'.$this->modalKey;
+    }
+
     public function render()
     {
         return view('gallery::livewire.manager');
+    }
+
+    public function allowsGalleryAction(string $action): bool
+    {
+        return GalleryPermissions::allows(auth()->user(), $action);
     }
 
     private function validateUploadPayload(): void
@@ -410,6 +570,11 @@ class GalleryManager extends Component
         return $this->gallery;
     }
 
+    private function authorizeGalleryAction(string $action): void
+    {
+        GalleryPermissions::authorize($action);
+    }
+
     private function mediaInGallery(int $mediaId): SpatieMedia
     {
         $media = $this->mediaItems->firstWhere('id', $mediaId);
@@ -417,5 +582,20 @@ class GalleryManager extends Component
         abort_unless($media, 404);
 
         return $media;
+    }
+
+    private function selectedMedia()
+    {
+        $ids = collect($this->selectedMediaIds)
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
+        if ($ids === []) {
+            return collect();
+        }
+
+        return $this->mediaItems
+            ->filter(fn (SpatieMedia $media): bool => in_array((int) $media->id, $ids, true))
+            ->values();
     }
 }
