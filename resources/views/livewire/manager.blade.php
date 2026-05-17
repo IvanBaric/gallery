@@ -13,27 +13,27 @@
 <x-admin-ui::panel loading loading-target="uploads,saveUploads,deleteMedia,reorderMedia,setFeaturedMedia,saveMediaMeta,regenerateGallery" loading-text="{{ __('Osvježavam galeriju') }}">
     <x-admin-ui::panel-header :title="$panelTitle" :description="$panelDescription">
         <x-slot:actions>
-            <div x-data class="flex flex-wrap items-center justify-end gap-3">
-                <flux:button type="button" size="sm" variant="primary" icon="plus" :disabled="$remainingSlots <= 0" x-on:click.prevent="$refs.galleryUpload.click()">
-                    {{ __('Dodaj slike') }}
-                </flux:button>
-                <div wire:loading.flex wire:target="uploads" class="items-center gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                    <flux:icon icon="arrow-path" class="size-3.5 animate-spin" />
-                    <span>{{ __('Učitavanje fotografija...') }}</span>
+            <div x-data class="flex flex-wrap items-center justify-end gap-2">
+                <div class="inline-flex items-center gap-2 rounded-lg bg-zinc-50 px-2.5 py-1.5 ring-1 ring-zinc-950/5 dark:bg-zinc-900/70 dark:ring-white/10">
+                    <flux:button type="button" size="sm" variant="primary" icon="plus" :disabled="$remainingSlots <= 0" x-on:click.prevent="$refs.galleryUpload.click()">
+                        {{ __('Dodaj slike') }}
+                    </flux:button>
+                    <div wire:loading.flex wire:target="uploads" class="items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        <flux:icon icon="arrow-path" class="size-3.5 animate-spin" />
+                        <span>{{ __('Učitavanje...') }}</span>
+                    </div>
                 </div>
 
-                <div class="flex shrink-0 items-center gap-3">
-                    <span class="text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">{{ __('Iskorišteno') }}</span>
-                    <span class="text-sm font-semibold tabular-nums text-zinc-700 dark:text-zinc-200">{{ $mediaCount }}<span class="font-normal text-zinc-400 dark:text-zinc-500"> / {{ $maxFiles }}</span></span>
-                    <div class="h-1 w-20 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800/80">
-                        <div class="h-full rounded-full bg-zinc-900/80 transition-all duration-200 ease-out dark:bg-white/80" style="width: {{ $maxFiles > 0 ? min(100, ($mediaCount / $maxFiles) * 100) : 0 }}%"></div>
+                <div class="inline-flex items-center gap-2 rounded-lg bg-zinc-50 px-2.5 py-1.5 ring-1 ring-zinc-950/5 dark:bg-zinc-900/70 dark:ring-white/10">
+                    <span class="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">{{ __('Iskorišteno') }}</span>
+                    <span class="text-sm font-semibold tabular-nums text-zinc-800 dark:text-zinc-100">{{ $mediaCount }}<span class="font-medium text-zinc-400 dark:text-zinc-500"> / {{ $maxFiles }}</span></span>
+                    <div class="h-1.5 w-20 overflow-hidden rounded-full bg-zinc-200/70 dark:bg-zinc-700/70">
+                        <div class="h-full rounded-full bg-zinc-900 transition-all duration-200 ease-out dark:bg-white" style="width: {{ $maxFiles > 0 ? min(100, ($mediaCount / $maxFiles) * 100) : 0 }}%"></div>
                     </div>
                 </div>
 
                 <flux:tooltip :content="__('Ponovno generiraj veličine slika za ovu galeriju')">
-                    <flux:button type="button" size="sm" variant="ghost" icon="arrow-path" wire:click="regenerateGallery" wire:loading.attr="disabled">
-                        {{ __('Regeneriraj') }}
-                    </flux:button>
+                    <flux:button type="button" size="sm" variant="ghost" icon="arrow-path" wire:click="regenerateGallery" wire:loading.attr="disabled" />
                 </flux:tooltip>
             </div>
         </x-slot:actions>
@@ -57,11 +57,6 @@
             </x-admin-ui::empty-state>
         @else
             <div class="mt-6">
-                <div class="mb-2.5 flex items-center justify-between gap-3">
-                    <p class="text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">{{ __('Spremljene fotografije') }}</p>
-                    <p class="hidden text-[12px] leading-5 text-zinc-400 dark:text-zinc-500 sm:block">{{ __('Povucite za promjenu redoslijeda') }}</p>
-                </div>
-
                 <div wire:sort="reorderMedia" class="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5">
                     @foreach ($mediaItems as $idx => $img)
                         @php

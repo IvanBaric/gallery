@@ -18,6 +18,8 @@ class GalleryEdit extends Component
 
     public ?string $description = null;
 
+    public string $deletePassword = '';
+
     public function mount(string $uuid): void
     {
         $this->uuid = $uuid;
@@ -41,6 +43,28 @@ class GalleryEdit extends Component
             text: __('Podaci galerije su ažurirani.'),
             variant: 'success',
         );
+    }
+
+    public function deleteGallery(): void
+    {
+        $this->validate([
+            'deletePassword' => ['required', 'string', 'current_password'],
+        ], [
+            'deletePassword.current_password' => __('Lozinka nije ispravna.'),
+        ]);
+
+        $galleryTitle = $this->gallery->displayTitle();
+
+        $this->gallery->clearMediaCollection($this->gallery->collection_name);
+        $this->gallery->delete();
+
+        Flux::toast(
+            heading: __('Galerija obrisana'),
+            text: $galleryTitle,
+            variant: 'success',
+        );
+
+        $this->redirectRoute('admin.galleries.index', navigate: true);
     }
 
     public function render()
