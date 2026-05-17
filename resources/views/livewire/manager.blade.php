@@ -13,12 +13,10 @@
 <x-admin-ui::panel loading loading-target="uploads,saveUploads,deleteMedia,reorderMedia,setFeaturedMedia,saveMediaMeta,regenerateGallery" loading-text="{{ __('Osvježavam galeriju') }}">
     <x-admin-ui::panel-header :title="$panelTitle" :description="$panelDescription">
         <x-slot:actions>
-            <div class="flex flex-wrap items-center justify-end gap-3">
-                <label for="gallery-upload-{{ $modalKey }}">
-                    <flux:button type="button" size="sm" variant="primary" icon="plus" :disabled="$remainingSlots <= 0">
-                        {{ __('Dodaj slike') }}
-                    </flux:button>
-                </label>
+            <div x-data class="flex flex-wrap items-center justify-end gap-3">
+                <flux:button type="button" size="sm" variant="primary" icon="plus" :disabled="$remainingSlots <= 0" x-on:click.prevent="$refs.galleryUpload.click()">
+                    {{ __('Dodaj slike') }}
+                </flux:button>
 
                 <div class="flex shrink-0 items-center gap-3">
                     <span class="text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">{{ __('Iskorišteno') }}</span>
@@ -38,7 +36,7 @@
     </x-admin-ui::panel-header>
 
     <div class="p-6">
-        <input id="gallery-upload-{{ $modalKey }}" wire:model="uploads" type="file" multiple accept="{{ $this->acceptedMimes }}" class="sr-only" @disabled($remainingSlots <= 0) />
+        <input id="gallery-upload-{{ $modalKey }}" x-ref="galleryUpload" wire:model="uploads" type="file" multiple accept="{{ $this->acceptedMimes }}" class="sr-only" @disabled($remainingSlots <= 0) />
 
         @error('uploads') <p class="mt-2 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
         @error('uploads.*') <p class="mt-2 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
