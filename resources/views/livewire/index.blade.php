@@ -10,7 +10,7 @@
 <x-admin-ui::page>
     <x-admin-ui::page-header :title="__('Galerija')" :description="__('Centralni pregled svih galerija, slika i generiranih veličina.')">
         <x-slot:actions>
-            <flux:button type="button" variant="primary" icon="plus" wire:click="openCreateGallery">
+            <flux:button type="button" variant="primary" icon="plus" wire:click="createGallery">
                 {{ __('Dodaj novu galeriju') }}
             </flux:button>
             <flux:button type="button" variant="ghost" icon="arrow-path" wire:click="regenerateAll" wire:loading.attr="disabled">
@@ -78,13 +78,13 @@
                         </div>
 
                         <div class="min-w-0">
-                            <button
-                                type="button"
+                            <a
+                                href="{{ route('admin.galleries.edit', ['uuid' => $gallery->uuid]) }}"
+                                wire:navigate
                                 class="truncate text-left text-sm font-semibold text-zinc-950 underline-offset-4 hover:underline dark:text-white"
-                                wire:click="openGallery('{{ $gallery->uuid }}')"
                             >
                                 {{ $gallery->displayTitle() }}
-                            </button>
+                            </a>
                             <p class="mt-1 truncate text-[12px] leading-5 text-zinc-500 dark:text-zinc-400">{{ $gallery->ownerLabel() }}</p>
                             <p class="mt-1 text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500">{{ $gallery->collection_name }}</p>
                         </div>
@@ -118,41 +118,6 @@
     @if ($this->galleries->hasPages())
         <flux:pagination :paginator="$this->galleries" />
     @endif
-
-    <flux:modal name="gallery-create" class="max-w-2xl">
-        <form wire:submit="createGallery" class="space-y-6">
-            <div>
-                <flux:heading size="lg">{{ __('Dodaj novu galeriju') }}</flux:heading>
-                <flux:subheading class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{{ __('Kreirajte galeriju i odmah dodajte fotografije.') }}</flux:subheading>
-            </div>
-
-            <div class="grid gap-4">
-                <flux:input wire:model="newGalleryTitle" :label="__('Naziv')" />
-                <flux:input wire:model="newGalleryCollection" :label="__('Kolekcija')" placeholder="images" />
-                <flux:textarea wire:model="newGalleryDescription" :label="__('Opis')" rows="3" />
-            </div>
-
-            <div class="flex items-center justify-end gap-2">
-                <flux:modal.close>
-                    <flux:button type="button" variant="ghost">{{ __('Odustani') }}</flux:button>
-                </flux:modal.close>
-                <flux:button type="submit" variant="primary" icon="plus">{{ __('Kreiraj galeriju') }}</flux:button>
-            </div>
-        </form>
-    </flux:modal>
-
-    <flux:modal name="gallery-open" class="max-w-7xl">
-        @if ($this->activeGallery)
-            <x-gallery::manager
-                :model="$this->activeGallery"
-                :collection="$this->activeGallery->collection_name"
-                context="default"
-                :title="$this->activeGallery->displayTitle()"
-                :description="$this->activeGallery->description ?: __('Uređivanje fotografija galerije.')"
-                :migrate-legacy="false"
-            />
-        @endif
-    </flux:modal>
 
     <flux:modal name="gallery-settings" class="max-w-4xl">
         <form wire:submit="saveSettings" class="space-y-6">

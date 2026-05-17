@@ -18,14 +18,6 @@ class GalleryIndex extends Component
 
     public string $search = '';
 
-    public ?string $activeGalleryUuid = null;
-
-    public string $newGalleryTitle = '';
-
-    public string $newGalleryCollection = 'images';
-
-    public ?string $newGalleryDescription = null;
-
     public array $sizeSettings = [];
 
     public function mount(): void
@@ -44,37 +36,14 @@ class GalleryIndex extends Component
         $this->dispatch('modal-show', name: 'gallery-settings');
     }
 
-    public function openCreateGallery(): void
-    {
-        $this->resetValidation();
-        $this->newGalleryTitle = '';
-        $this->newGalleryCollection = 'images';
-        $this->newGalleryDescription = null;
-        $this->dispatch('modal-show', name: 'gallery-create');
-    }
-
     public function createGallery(): void
     {
-        $validated = $this->validate([
-            'newGalleryTitle' => ['required', 'string', 'max:180'],
-            'newGalleryCollection' => ['required', 'string', 'max:80', 'regex:/^[a-z0-9._-]+$/'],
-            'newGalleryDescription' => ['nullable', 'string', 'max:2000'],
-        ]);
-
         $gallery = Gallery::query()->create([
-            'title' => $validated['newGalleryTitle'],
-            'collection_name' => $validated['newGalleryCollection'],
-            'description' => $validated['newGalleryDescription'],
+            'title' => __('Nova galerija'),
+            'collection_name' => 'images',
         ]);
 
-        $this->dispatch('modal-close', name: 'gallery-create');
-        $this->openGallery($gallery->uuid);
-
-        Flux::toast(
-            heading: __('Galerija kreirana'),
-            text: __('Nova galerija je spremna za dodavanje fotografija.'),
-            variant: 'success',
-        );
+        $this->redirectRoute('admin.galleries.edit', ['uuid' => $gallery->uuid], navigate: true);
     }
 
     public function openGallery(string $uuid): void
@@ -86,8 +55,7 @@ class GalleryIndex extends Component
 
         abort_unless($exists, 404);
 
-        $this->activeGalleryUuid = $uuid;
-        $this->dispatch('modal-show', name: 'gallery-open');
+        $this->redirectRoute('admin.galleries.edit', ['uuid' => $uuid], navigate: true);
     }
 
     public function saveSettings(): void
@@ -183,19 +151,6 @@ class GalleryIndex extends Component
             ->latest('created_at')
             ->latest('id')
             ->simplePaginate(18);
-    }
-
-    #[Computed]
-    public function activeGallery(): ?Gallery
-    {
-        if ($this->activeGalleryUuid === null || $this->activeGalleryUuid === '') {
-            return null;
-        }
-
-        return Gallery::query()
-            ->forCurrentTenant()
-            ->where('uuid', $this->activeGalleryUuid)
-            ->first();
     }
 
     #[Computed]

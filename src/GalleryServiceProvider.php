@@ -7,6 +7,7 @@ namespace IvanBaric\Gallery;
 use Illuminate\Support\ServiceProvider;
 use IvanBaric\Gallery\Console\Commands\MigrateModelMediaCommand;
 use IvanBaric\Gallery\Contracts\TenantResolver;
+use IvanBaric\Gallery\Http\Livewire\GalleryEdit;
 use IvanBaric\Gallery\Http\Livewire\GalleryIndex;
 use IvanBaric\Gallery\Http\Livewire\GalleryManager;
 use Livewire\Livewire;
@@ -35,6 +36,7 @@ class GalleryServiceProvider extends ServiceProvider
 
         Livewire::component('gallery.manager', GalleryManager::class);
         Livewire::component('gallery.index', GalleryIndex::class);
+        Livewire::component('gallery.edit', GalleryEdit::class);
 
         if ((bool) config('gallery.routes.enabled', true)) {
             $this->loadRoutesFrom(__DIR__.'/../routes/web.php');

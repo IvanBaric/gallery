@@ -10,6 +10,7 @@ Route::middleware(config('gallery.routes.middleware', ['web', 'auth', 'verified'
     ->name(config('gallery.routes.name', 'admin.galleries.'))
     ->group(function (): void {
         Route::livewire(config('gallery.routes.path', 'galleries'), 'gallery.index')->name('index');
+        Route::livewire(config('gallery.routes.path', 'galleries').'/{uuid}/edit', 'gallery.edit')->name('edit');
     });
 
 Route::middleware(config('gallery.routes.media_middleware', ['web', 'auth']))
