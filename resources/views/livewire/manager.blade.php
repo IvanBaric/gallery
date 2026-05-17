@@ -14,6 +14,12 @@
     <x-admin-ui::panel-header :title="$panelTitle" :description="$panelDescription">
         <x-slot:actions>
             <div class="flex flex-wrap items-center justify-end gap-3">
+                <label for="gallery-upload-{{ $modalKey }}">
+                    <flux:button type="button" size="sm" variant="primary" icon="plus" :disabled="$remainingSlots <= 0">
+                        {{ __('Dodaj slike') }}
+                    </flux:button>
+                </label>
+
                 <div class="flex shrink-0 items-center gap-3">
                     <span class="text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">{{ __('Iskorišteno') }}</span>
                     <span class="text-sm font-semibold tabular-nums text-zinc-700 dark:text-zinc-200">{{ $mediaCount }}<span class="font-normal text-zinc-400 dark:text-zinc-500"> / {{ $maxFiles }}</span></span>
@@ -32,32 +38,7 @@
     </x-admin-ui::panel-header>
 
     <div class="p-6">
-        <label for="gallery-upload-{{ $modalKey }}" @class([
-            'group relative flex flex-col items-center justify-center gap-3 rounded-2xl bg-zinc-50/70 px-6 py-10 text-center ring-1 ring-dashed ring-zinc-950/10 transition duration-150 ease-out focus-within:bg-zinc-50 focus-within:ring-zinc-950/20 dark:bg-zinc-900/70 dark:ring-white/10 dark:focus-within:bg-zinc-900 dark:focus-within:ring-white/20',
-            'cursor-pointer hover:bg-zinc-50 hover:ring-zinc-950/20 dark:hover:bg-zinc-900 dark:hover:ring-white/20' => $remainingSlots > 0,
-            'cursor-not-allowed opacity-60' => $remainingSlots <= 0,
-        ])>
-            <div class="relative flex size-11 shrink-0 items-center justify-center rounded-2xl bg-white text-zinc-400 shadow-sm ring-1 ring-zinc-950/5 transition duration-150 ease-out group-hover:text-zinc-700 dark:bg-zinc-950 dark:text-zinc-500 dark:ring-white/10 dark:group-hover:text-zinc-200">
-                <flux:icon icon="arrow-up-tray" variant="micro" class="size-5" wire:loading.remove wire:target="uploads" />
-                <flux:icon icon="arrow-path" variant="micro" class="size-5 animate-spin" wire:loading wire:target="uploads" />
-            </div>
-
-            <div class="space-y-1 text-center">
-                <p class="text-sm font-semibold text-zinc-950 dark:text-white">
-                    @if ($remainingSlots > 0)
-                        <span wire:loading.remove wire:target="uploads">{{ __('Kliknite za odabir ili povucite fotografije') }}</span>
-                        <span wire:loading wire:target="uploads">{{ __('Učitavanje...') }}</span>
-                    @else
-                        {{ __('Galerija je popunjena') }}
-                    @endif
-                </p>
-                <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                    {{ strtoupper(str_replace(',', ', ', str_replace('.', '', $this->acceptedMimes))) }} · {{ __('do :mb MB · preostalo :n', ['mb' => $maxMb, 'n' => $remainingSlots]) }}
-                </p>
-            </div>
-
-            <input id="gallery-upload-{{ $modalKey }}" wire:model="uploads" type="file" multiple accept="{{ $this->acceptedMimes }}" class="sr-only" @disabled($remainingSlots <= 0) />
-        </label>
+        <input id="gallery-upload-{{ $modalKey }}" wire:model="uploads" type="file" multiple accept="{{ $this->acceptedMimes }}" class="sr-only" @disabled($remainingSlots <= 0) />
 
         @error('uploads') <p class="mt-2 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
         @error('uploads.*') <p class="mt-2 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
