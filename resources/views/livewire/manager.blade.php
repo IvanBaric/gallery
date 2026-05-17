@@ -79,7 +79,7 @@
                     <p class="hidden text-[12px] leading-5 text-zinc-400 dark:text-zinc-500 sm:block">{{ __('Povucite za promjenu redoslijeda') }}</p>
                 </div>
 
-                <div wire:sort="reorderMedia" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                <div wire:sort="reorderMedia" class="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5">
                     @foreach ($mediaItems as $idx => $img)
                         @php
                             $isFeatured = (int) $featuredId === (int) $img->id;
@@ -97,12 +97,8 @@
                                 </span>
                             @endif
 
-                            <span class="pointer-events-none absolute right-2 top-2 inline-flex size-5 items-center justify-center rounded-md bg-white/90 text-zinc-500 opacity-0 shadow-sm ring-1 ring-zinc-950/10 transition duration-150 ease-out group-hover/img:opacity-100 dark:bg-zinc-950/90 dark:text-zinc-400 dark:ring-white/10" aria-hidden="true">
+                            <span wire:sort:handle class="absolute right-2 top-2 inline-flex size-5 cursor-grab items-center justify-center rounded-md bg-white/90 text-zinc-500 opacity-0 shadow-sm ring-1 ring-zinc-950/10 transition duration-150 ease-out group-hover/img:opacity-100 active:cursor-grabbing dark:bg-zinc-950/90 dark:text-zinc-400 dark:ring-white/10" aria-label="{{ __('Povucite za promjenu redoslijeda') }}">
                                 <flux:icon icon="arrows-pointing-out" variant="micro" class="size-3" />
-                            </span>
-
-                            <span wire:sort:handle class="absolute left-2 top-2 inline-flex size-5 cursor-grab items-center justify-center rounded-md bg-white/90 text-zinc-500 opacity-0 shadow-sm ring-1 ring-zinc-950/10 transition duration-150 ease-out group-hover/img:opacity-100 active:cursor-grabbing dark:bg-zinc-950/90 dark:text-zinc-400 dark:ring-white/10" aria-label="{{ __('Povucite za promjenu redoslijeda') }}">
-                                <flux:icon icon="bars-3" variant="micro" class="size-3" />
                             </span>
 
                             <div wire:sort:ignore class="absolute inset-x-0 bottom-0 flex items-center justify-end gap-1 bg-gradient-to-t from-black/55 via-black/25 to-transparent p-1.5 opacity-0 transition duration-150 ease-out group-hover/img:opacity-100 group-focus-within/img:opacity-100">
