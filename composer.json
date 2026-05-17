@@ -1,0 +1,31 @@
+{
+  "name": "ivanbaric/gallery",
+  "description": "Reusable Spatie Media Library gallery manager for Laravel admin applications.",
+  "type": "library",
+  "license": "MIT",
+  "require": {
+    "php": "^8.2",
+    "illuminate/console": "^11.0 || ^12.0 || ^13.0",
+    "illuminate/database": "^11.0 || ^12.0 || ^13.0",
+    "illuminate/routing": "^11.0 || ^12.0 || ^13.0",
+    "illuminate/support": "^11.0 || ^12.0 || ^13.0",
+    "illuminate/view": "^11.0 || ^12.0 || ^13.0",
+    "ivanbaric/admin-ui": "dev-main",
+    "livewire/livewire": "^4.0",
+    "spatie/laravel-medialibrary": "^11.0 || dev-main"
+  },
+  "autoload": {
+    "psr-4": {
+      "IvanBaric\\Gallery\\": "src/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "IvanBaric\\Gallery\\GalleryServiceProvider"
+      ]
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
