@@ -17,6 +17,10 @@
                 <flux:button type="button" size="sm" variant="primary" icon="plus" :disabled="$remainingSlots <= 0" x-on:click.prevent="$refs.galleryUpload.click()">
                     {{ __('Dodaj slike') }}
                 </flux:button>
+                <div wire:loading.flex wire:target="uploads" class="items-center gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                    <flux:icon icon="arrow-path" class="size-3.5 animate-spin" />
+                    <span>{{ __('Učitavanje fotografija...') }}</span>
+                </div>
 
                 <div class="flex shrink-0 items-center gap-3">
                     <span class="text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">{{ __('Iskorišteno') }}</span>

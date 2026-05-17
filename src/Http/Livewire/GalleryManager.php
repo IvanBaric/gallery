@@ -113,7 +113,7 @@ class GalleryManager extends Component
 
         $count = count($this->uploads);
         $this->reset('uploads');
-        unset($this->gallery, $this->mediaItems);
+        unset($this->subject, $this->gallery, $this->mediaItems);
 
         Flux::toast(
             heading: __('Fotografije spremljene'),
