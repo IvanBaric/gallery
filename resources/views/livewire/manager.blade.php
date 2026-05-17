@@ -11,39 +11,46 @@
 @endphp
 
 <x-admin-ui::panel loading loading-target="uploads,saveUploads,deleteMedia,reorderMedia,setFeaturedMedia,saveMediaMeta,regenerateGallery" loading-text="{{ __('Spremam promjene u galeriji...') }}">
-    <x-admin-ui::panel-header :title="$panelTitle" :description="$panelDescription">
-        <x-slot:actions>
-            <div x-data class="flex flex-wrap items-center justify-end gap-2">
-                <div class="inline-flex items-center gap-2 rounded-lg bg-zinc-50 px-2.5 py-1.5 ring-1 ring-zinc-950/5 dark:bg-zinc-900/70 dark:ring-white/10">
-                    <flux:button type="button" size="sm" variant="primary" icon="plus" :disabled="$remainingSlots <= 0" x-on:click.prevent="$refs.galleryUpload.click()">
-                        {{ __('Dodaj slike') }}
-                    </flux:button>
-                    <div wire:loading.flex wire:target="uploads" class="items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                        <flux:icon icon="arrow-path" class="size-3.5 animate-spin" />
-                        <span>{{ __('Dodajem slike u galeriju...') }}</span>
-                    </div>
+    <x-admin-ui::panel-header :title="$panelTitle" :description="$panelDescription" />
+
+    <div x-data class="p-6">
+        <div class="mb-5 flex flex-col gap-4 rounded-lg border border-zinc-200/80 bg-zinc-50/70 px-4 py-4 dark:border-white/10 dark:bg-zinc-900/60 lg:flex-row lg:items-center lg:justify-between">
+            <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">{{ __('Kapacitet galerije') }}</p>
+                    <p class="text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{{ $mediaCount }}<span class="font-medium text-zinc-400 dark:text-zinc-500"> / {{ $maxFiles }}</span></p>
                 </div>
 
-                <div class="inline-flex items-center gap-2 rounded-lg bg-zinc-50 px-2.5 py-1.5 ring-1 ring-zinc-950/5 dark:bg-zinc-900/70 dark:ring-white/10">
-                    <span class="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">{{ __('Iskorišteno') }}</span>
-                    <span class="text-sm font-semibold tabular-nums text-zinc-800 dark:text-zinc-100">{{ $mediaCount }}<span class="font-medium text-zinc-400 dark:text-zinc-500"> / {{ $maxFiles }}</span></span>
-                    <div class="h-1.5 w-20 overflow-hidden rounded-full bg-zinc-200/70 dark:bg-zinc-700/70">
-                        <div class="h-full rounded-full bg-zinc-900 transition-all duration-200 ease-out dark:bg-white" style="width: {{ $maxFiles > 0 ? min(100, ($mediaCount / $maxFiles) * 100) : 0 }}%"></div>
-                    </div>
+                <div class="mt-2 h-1.5 max-w-sm overflow-hidden rounded-full bg-zinc-200/80 dark:bg-zinc-700/70">
+                    <div class="h-full rounded-full bg-zinc-900 transition-all duration-200 ease-out dark:bg-white" style="width: {{ $maxFiles > 0 ? min(100, ($mediaCount / $maxFiles) * 100) : 0 }}%"></div>
                 </div>
 
-                <flux:tooltip :content="__('Ponovno generiraj veličine slika za ovu galeriju')">
-                    <flux:button type="button" size="sm" variant="ghost" icon="arrow-path" wire:click="regenerateGallery" wire:loading.attr="disabled" />
-                </flux:tooltip>
-                <div wire:loading.flex wire:target="regenerateGallery" class="items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] leading-5 text-zinc-500 dark:text-zinc-400">
+                    <span>{{ __('Maksimalno :mb MB po slici', ['mb' => $maxMb]) }}</span>
+                    <span class="hidden text-zinc-300 dark:text-zinc-600 sm:inline">/</span>
+                    <span>{{ __('Preostalo: :n', ['n' => $remainingSlots]) }}</span>
+                    <span class="hidden text-zinc-300 dark:text-zinc-600 sm:inline">/</span>
+                    <span>{{ strtoupper(str_replace(',', ', ', str_replace('.', '', $this->acceptedMimes))) }}</span>
+                </div>
+
+                <div wire:loading.flex wire:target="uploads,regenerateGallery" class="mt-2 items-center gap-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-300">
                     <flux:icon icon="arrow-path" class="size-3.5 animate-spin" />
-                    <span>{{ __('Regeneriram veličine slika...') }}</span>
+                    <span wire:loading wire:target="uploads">{{ __('Dodajem slike u galeriju...') }}</span>
+                    <span wire:loading wire:target="regenerateGallery">{{ __('Regeneriram veličine slika...') }}</span>
                 </div>
             </div>
-        </x-slot:actions>
-    </x-admin-ui::panel-header>
 
-    <div class="p-6">
+            <div class="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
+                <flux:button type="button" variant="primary" icon="plus" :disabled="$remainingSlots <= 0" x-on:click.prevent="$refs.galleryUpload.click()">
+                    {{ __('Dodaj slike') }}
+                </flux:button>
+
+                <flux:tooltip :content="__('Ponovno generiraj veličine slika za ovu galeriju')">
+                    <flux:button type="button" variant="ghost" icon="arrow-path" wire:click="regenerateGallery" wire:loading.attr="disabled" />
+                </flux:tooltip>
+            </div>
+        </div>
+
         <input id="gallery-upload-{{ $modalKey }}" x-ref="galleryUpload" wire:model="uploads" type="file" multiple accept="{{ $this->acceptedMimes }}" class="sr-only" @disabled($remainingSlots <= 0) />
 
         @error('uploads') <p class="mt-2 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror

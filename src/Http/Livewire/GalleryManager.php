@@ -392,6 +392,16 @@ class GalleryManager extends Component
         $this->validate([
             'uploads' => ['array', 'max:'.$this->remainingSlots],
             'uploads.*' => $imageRules,
+        ], [
+            'uploads.array' => __('Odaberite jednu ili više fotografija.'),
+            'uploads.max' => __('Možete dodati najviše :max fotografija.', ['max' => $this->remainingSlots]),
+            'uploads.*.image' => __('Svaka datoteka mora biti slika.'),
+            'uploads.*.max' => __('Svaka fotografija mora biti manja od :max MB.', ['max' => max(1, (int) ceil($validation['max_file_size_kb'] / 1024))]),
+            'uploads.*.mimes' => __('Dopušteni formati su: :values.', ['values' => strtoupper(implode(', ', $validation['mimes']))]),
+            'uploads.*.dimensions' => __('Fotografija ne zadovoljava minimalne dimenzije.'),
+        ], [
+            'uploads' => __('fotografije'),
+            'uploads.*' => __('fotografija'),
         ]);
     }
 
