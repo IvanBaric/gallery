@@ -67,13 +67,20 @@
                 @endphp
                 <article wire:key="gallery-{{ $gallery->uuid }}" class="admin-list-row grid-cols-[minmax(0,1fr)_8rem_10rem_10rem_9rem] p-4 sm:p-6">
                     <div class="flex min-w-0 items-center gap-4">
-                        <div class="size-20 shrink-0 overflow-hidden rounded-xl bg-zinc-100 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+                        <div class="relative h-20 w-28 shrink-0 overflow-hidden rounded-xl bg-zinc-100 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
                             @if ($thumb)
                                 <img src="{{ $thumb }}" alt="" class="h-full w-full object-cover" loading="lazy" />
                             @else
                                 <div class="flex h-full w-full items-center justify-center text-zinc-300 dark:text-zinc-700">
                                     <flux:icon icon="photo" class="size-7" />
                                 </div>
+                            @endif
+
+                            @if ($count > 0)
+                                <span class="absolute bottom-1 right-1 inline-flex items-center gap-1 rounded-md bg-zinc-950/75 px-2 py-1 text-xs font-semibold tabular-nums text-white shadow-sm ring-1 ring-white/10 backdrop-blur" aria-label="{{ trans_choice('{1} :count fotografija|[2,4] :count fotografije|[5,*] :count fotografija', $count, ['count' => $count]) }}">
+                                    <flux:icon icon="photo" variant="micro" class="size-3" />
+                                    {{ $count }}
+                                </span>
                             @endif
                         </div>
 
