@@ -6,62 +6,93 @@
     $selectPlaceholder = $placeholder ?: ($emptyOnly ? __('Odaberite praznu samostalnu galeriju') : __('Odaberite samostalnu galeriju'));
     $submitLabel = $buttonLabel ?: __('Dodijeli galeriju');
     $hasCurrentGallery = (bool) $currentGallery;
-    $isLocked = $hasCurrentGallery && ! $allowReplace;
+    $canChooseGallery = $canAttach && $standaloneGalleries->isNotEmpty();
 @endphp
 
 <div class="space-y-3">
     @if ($showCurrent && $currentGallery)
-        <div class="rounded-xl bg-zinc-50/70 px-4 py-3 text-sm text-zinc-600 ring-1 ring-zinc-950/5 dark:bg-zinc-900/80 dark:text-zinc-300 dark:ring-white/10">
-            <span class="font-medium text-zinc-950 dark:text-white">{{ __('Trenutna galerija') }}:</span>
-            <span>{{ $currentGallery->displayTitle() }}</span>
+        <div class="rounded-xl bg-zinc-50/70 p-4 ring-1 ring-zinc-950/5 dark:bg-zinc-900/80 dark:ring-white/10">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-xs font-medium uppercase text-zinc-400 dark:text-zinc-500">{{ __('Povezana galerija') }}</p>
+                    <p class="mt-1 text-sm font-semibold text-zinc-950 dark:text-white">{{ $currentGallery->displayTitle() }}</p>
+                </div>
+
+                @if ($canAttach)
+                    <flux:modal.trigger name="gallery-detach-confirm">
+                        <flux:tooltip :content="__('Odspoji galeriju od ovog zapisa bez brisanja galerije')">
+                            <flux:button type="button" variant="ghost" size="sm" icon="x-mark">
+                                {{ __('Ukloni vezu') }}
+                            </flux:button>
+                        </flux:tooltip>
+                    </flux:modal.trigger>
+                @endif
+            </div>
         </div>
     @endif
 
-    <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-        <flux:select
-            wire:model="selectedGalleryUuid"
-            :label="$selectLabel"
-            :placeholder="$selectPlaceholder"
-            variant="listbox"
-            searchable
-            clearable
-            :disabled="! $canAttach || $isLocked"
-        >
-            @foreach ($standaloneGalleries as $gallery)
-                <flux:select.option value="{{ $gallery->uuid }}">
-                    {{ $gallery->displayTitle() }}
-                </flux:select.option>
-            @endforeach
-        </flux:select>
+    @if ($canChooseGallery)
+        <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <flux:select
+                wire:model.live="selectedGalleryUuid"
+                :label="$hasCurrentGallery ? __('Odaberi drugu galeriju') : $selectLabel"
+                :placeholder="$hasCurrentGallery ? __('Odaberite novu galeriju') : $selectPlaceholder"
+                variant="listbox"
+                searchable
+                clearable
+            >
+                @foreach ($standaloneGalleries as $gallery)
+                    <flux:select.option value="{{ $gallery->uuid }}">
+                        {{ $gallery->displayTitle() }}
+                    </flux:select.option>
+                @endforeach
+            </flux:select>
 
-        <flux:button
-            type="button"
-            variant="primary"
-            icon="link"
-            wire:click="attachSelectedGallery"
-            wire:loading.attr="disabled"
-            wire:target="attachSelectedGallery"
-            :disabled="blank($selectedGalleryUuid) || ! $canAttach || $isLocked"
-        >
-            {{ $submitLabel }}
-        </flux:button>
-    </div>
+            <flux:tooltip :content="$hasCurrentGallery ? __('Zamijeni trenutnu galeriju odabranom galerijom') : __('Poveži odabranu galeriju s ovim zapisom')">
+                <flux:button
+                    type="button"
+                    variant="primary"
+                    icon="link"
+                    wire:click="attachSelectedGallery"
+                    wire:loading.attr="disabled"
+                    wire:target="attachSelectedGallery"
+                    :disabled="blank($selectedGalleryUuid)"
+                >
+                    {{ $hasCurrentGallery ? __('Poveži odabranu') : $submitLabel }}
+                </flux:button>
+            </flux:tooltip>
+        </div>
+    @endif
 
     @if ($description)
         <p class="text-sm leading-5 text-zinc-500 dark:text-zinc-400">{{ $description }}</p>
     @endif
 
-    @if ($isLocked)
+    @if ($standaloneGalleries->isEmpty())
         <p class="text-sm leading-5 text-zinc-500 dark:text-zinc-400">
-            {{ __('Ovaj zapis već ima galeriju za odabranu kolekciju.') }}
-        </p>
-    @elseif ($standaloneGalleries->isEmpty())
-        <p class="text-sm leading-5 text-zinc-500 dark:text-zinc-400">
-            {{ $emptyOnly ? __('Nema dostupnih praznih samostalnih galerija.') : __('Nema dostupnih samostalnih galerija.') }}
+            {{ $hasCurrentGallery ? __('Nema dostupnih samostalnih galerija za zamjenu.') : ($emptyOnly ? __('Nema dostupnih praznih samostalnih galerija.') : __('Nema dostupnih samostalnih galerija.')) }}
         </p>
     @endif
 
     @error('selectedGalleryUuid')
         <p class="text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
     @enderror
+
+    <flux:modal name="gallery-detach-confirm" class="max-w-lg">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">{{ __('Ukloniti vezu s galerijom?') }}</flux:heading>
+                <flux:text class="mt-2">{{ __('Galerija neće biti obrisana. Samo će se odspojiti od ovog zapisa i ponovno biti dostupna za povezivanje.') }}</flux:text>
+            </div>
+
+            <div class="flex justify-end gap-2">
+                <flux:modal.close>
+                    <flux:button type="button" variant="ghost">{{ __('Odustani') }}</flux:button>
+                </flux:modal.close>
+                <flux:button type="button" wire:click="detachCurrentGallery" wire:loading.attr="disabled" wire:target="detachCurrentGallery" variant="danger" icon="x-mark">
+                    {{ __('Ukloni vezu') }}
+                </flux:button>
+            </div>
+        </div>
+    </flux:modal>
 </div>

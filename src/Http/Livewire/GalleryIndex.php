@@ -214,9 +214,9 @@ class GalleryIndex extends Component
         $stats = $this->stats;
 
         return [
-            'all' => ['label' => __('Sve'), 'count' => $stats['galleries']],
-            'empty' => ['label' => __('Prazne'), 'count' => $stats['empty']],
-            'without_featured' => ['label' => __('Bez istaknute slike'), 'count' => $stats['without_featured']],
+            'all' => ['label' => __('Sve'), 'icon' => 'photo', 'count' => $stats['galleries']],
+            'empty' => ['label' => __('Prazne'), 'icon' => 'archive-box', 'count' => $stats['empty']],
+            'without_featured' => ['label' => __('Bez istaknute slike'), 'icon' => 'star', 'count' => $stats['without_featured']],
         ];
     }
 
@@ -301,5 +301,4 @@ class GalleryIndex extends Component
     {
         GalleryPermissions::authorize($action);
     }
-
 }

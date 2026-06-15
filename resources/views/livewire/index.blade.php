@@ -22,14 +22,18 @@
             </flux:button>
             @endif
             @if ($canRegenerate)
-            <flux:button type="button" variant="ghost" icon="arrow-path" wire:click="openRegenerateAllConfirmation" wire:loading.attr="disabled">
-                {{ __('Regeneriraj sve') }}
-            </flux:button>
+            <flux:tooltip :content="__('Ponovno generiraj sve veličine slika za sve galerije')">
+                <flux:button type="button" variant="ghost" icon="arrow-path" wire:click="openRegenerateAllConfirmation" wire:loading.attr="disabled">
+                    {{ __('Regeneriraj sve') }}
+                </flux:button>
+            </flux:tooltip>
             @endif
             @if ($canSettings)
-            <flux:button type="button" variant="ghost" icon="cog-6-tooth" wire:click="openSettings">
-                {{ __('Postavke') }}
-            </flux:button>
+            <flux:tooltip :content="__('Otvori postavke galerija i obrade slika')">
+                <flux:button type="button" variant="ghost" icon="cog-6-tooth" wire:click="openSettings">
+                    {{ __('Postavke') }}
+                </flux:button>
+            </flux:tooltip>
             @endif
         </x-slot:actions>
     </x-admin-ui::page-header>
@@ -44,15 +48,12 @@
         @endforeach
     </x-admin-ui::stat-grid>
 
-    <x-admin-ui::toolbar-stack>
-        <x-admin-ui::toolbar>
-            <div class="relative w-full sm:w-80">
-                <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Pretraži galerije...')" />
-            </div>
-        </x-admin-ui::toolbar>
-
-        <x-admin-ui::filter-tabs :items="$this->filterOptions" :active="$filter" />
-    </x-admin-ui::toolbar-stack>
+    <x-admin-ui::search-filter-toolbar
+        :placeholder="__('Pretraži galerije...')"
+        :items="$this->filterOptions"
+        :active="$filter"
+        align="end"
+    />
 
     <x-admin-ui::panel loading loading-target="search,setFilter,regenerateAll,saveSettings,createGallery" loading-text="{{ __('Ažuriram pregled galerija...') }}">
         @if ($this->galleries->isEmpty())

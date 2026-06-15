@@ -205,7 +205,7 @@ trait HasGalleries
         }
 
         if (! $resolved) {
-            throw (new ModelNotFoundException())->setModel(Gallery::class, [$gallery]);
+            throw (new ModelNotFoundException)->setModel(Gallery::class, [$gallery]);
         }
 
         return $resolved;

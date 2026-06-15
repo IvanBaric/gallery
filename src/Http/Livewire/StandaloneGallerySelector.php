@@ -10,31 +10,43 @@ use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use IvanBaric\Gallery\Concerns\HasGalleries;
+use IvanBaric\Gallery\Contracts\TenantResolver;
 use IvanBaric\Gallery\Models\Gallery;
 use IvanBaric\Gallery\Support\GalleryPermissions;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class StandaloneGallerySelector extends Component
 {
+    #[Locked]
     public string $modelClass;
 
+    #[Locked]
     public int|string $modelKey;
 
+    #[Locked]
     public string $collection = 'images';
 
+    #[Locked]
     public bool $emptyOnly = true;
 
+    #[Locked]
     public bool $allowReplace = false;
 
+    #[Locked]
     public bool $showCurrent = true;
 
+    #[Locked]
     public ?string $label = null;
 
+    #[Locked]
     public ?string $placeholder = null;
 
+    #[Locked]
     public ?string $buttonLabel = null;
 
+    #[Locked]
     public ?string $description = null;
 
     public ?string $selectedGalleryUuid = null;
@@ -68,13 +80,19 @@ class StandaloneGallerySelector extends Component
     {
         $this->authorizeGalleryAction('attach');
 
-        $this->validate([
-            'selectedGalleryUuid' => ['required', 'string'],
-        ], [
-            'selectedGalleryUuid.required' => __('Odaberite samostalnu galeriju.'),
-        ], [
-            'selectedGalleryUuid' => __('samostalna galerija'),
-        ]);
+        try {
+            $this->validate([
+                'selectedGalleryUuid' => ['required', 'string'],
+            ], [
+                'selectedGalleryUuid.required' => __('Odaberite samostalnu galeriju.'),
+            ], [
+                'selectedGalleryUuid' => __('samostalna galerija'),
+            ]);
+        } catch (ValidationException $exception) {
+            Flux::toast(variant: 'danger', text: __('Odaberite galeriju i pokušajte ponovno.'));
+
+            throw $exception;
+        }
 
         if ($this->currentGallery && ! $this->allowReplace) {
             throw ValidationException::withMessages([
@@ -91,6 +109,8 @@ class StandaloneGallerySelector extends Component
             ->first();
 
         if (! $gallery) {
+            Flux::toast(variant: 'danger', text: __('Odabrana galerija nije dostupna za povezivanje.'));
+
             throw ValidationException::withMessages([
                 'selectedGalleryUuid' => __('Odabrana galerija nije dostupna za dodjelu.'),
             ]);
@@ -108,8 +128,12 @@ class StandaloneGallerySelector extends Component
                 $this->emptyOnly,
             );
         } catch (InvalidArgumentException $exception) {
+            $message = $this->attachmentErrorMessage($exception->getMessage());
+
+            Flux::toast(variant: 'danger', text: $message);
+
             throw ValidationException::withMessages([
-                'selectedGalleryUuid' => $exception->getMessage(),
+                'selectedGalleryUuid' => $message,
             ]);
         }
 
@@ -125,12 +149,49 @@ class StandaloneGallerySelector extends Component
         );
     }
 
+    public function detachCurrentGallery(): void
+    {
+        $this->authorizeGalleryAction('attach');
+
+        $gallery = $this->currentGallery;
+
+        if (! $gallery) {
+            Flux::toast(variant: 'warning', text: __('Ovaj zapis nema povezanu galeriju.'));
+
+            return;
+        }
+
+        $gallery->forceFill([
+            'galleryable_type' => null,
+            'galleryable_id' => null,
+        ])->save();
+
+        $this->selectedGalleryUuid = null;
+        unset($this->subject, $this->currentGallery, $this->standaloneGalleries);
+
+        $this->dispatch('gallery-detached', id: $gallery->getKey(), uuid: $gallery->uuid, collection: $this->collection);
+
+        Flux::modal('gallery-detach-confirm')->close();
+        Flux::toast(
+            heading: __('Galerija uklonjena'),
+            text: __('Galerija više nije povezana s ovim zapisom.'),
+            variant: 'success',
+        );
+    }
+
     #[Computed]
     public function subject(): Model
     {
         $modelClass = $this->modelClass;
 
-        return $modelClass::query()->findOrFail($this->modelKey);
+        $model = $modelClass::query()->findOrFail($this->modelKey);
+        $tenantId = app(TenantResolver::class)->id();
+
+        if ($tenantId !== null && $model->getAttribute('team_id') !== null) {
+            abort_unless((string) $model->getAttribute('team_id') === (string) $tenantId, 404);
+        }
+
+        return $model;
     }
 
     #[Computed]
@@ -173,5 +234,16 @@ class StandaloneGallerySelector extends Component
     private function authorizeGalleryAction(string $action): void
     {
         GalleryPermissions::authorize($action);
+    }
+
+    private function attachmentErrorMessage(string $message): string
+    {
+        return match ($message) {
+            'The model must be saved before attaching a gallery.' => __('Zapis mora biti spremljen prije povezivanja galerije.'),
+            'Only standalone galleries can be attached.' => __('Moguće je povezati samo samostalne galerije.'),
+            'Only empty standalone galleries can be attached.' => __('Moguće je povezati samo prazne samostalne galerije.'),
+            'The model already has a gallery for this collection.' => __('Zapis već ima galeriju za ovu kolekciju.'),
+            default => __('Galeriju nije moguće povezati.'),
+        };
     }
 }

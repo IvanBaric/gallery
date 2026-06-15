@@ -70,12 +70,6 @@
             </div>
         </div>
 
-        <div wire:loading.flex wire:target="uploads,regenerateGallery" class="mt-3 items-center gap-1.5 text-[12px] font-medium text-zinc-600 dark:text-zinc-300">
-            <flux:icon icon="arrow-path" class="size-3.5 animate-spin" />
-            <span wire:loading wire:target="uploads">{{ __('Dodajem slike u galeriju...') }}</span>
-            <span wire:loading wire:target="regenerateGallery,regenerateSelectedMedia">{{ __('Pokrećem regeneriranje...') }}</span>
-        </div>
-
         @error('uploads') <p class="mt-3 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
         @error('uploads.*') <p class="mt-3 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
 

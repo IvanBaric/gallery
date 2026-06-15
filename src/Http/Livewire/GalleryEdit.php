@@ -8,12 +8,15 @@ use Flux\Flux;
 use IvanBaric\Gallery\Jobs\RegenerateGalleryConversions;
 use IvanBaric\Gallery\Models\Gallery;
 use IvanBaric\Gallery\Support\GalleryPermissions;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class GalleryEdit extends Component
 {
+    #[Locked]
     public string $uuid;
 
+    #[Locked]
     public Gallery $gallery;
 
     public string $title = '';
