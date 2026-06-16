@@ -118,8 +118,8 @@
             </div>
 
             <div class="grid gap-4">
-                <flux:input wire:model="title" :label="__('Naziv')" />
-                <flux:textarea wire:model="description" :label="__('Opis')" rows="4" />
+                <flux:input wire:model="form.title" :label="__('Naziv')" />
+                <flux:textarea wire:model="form.description" :label="__('Opis')" rows="4" />
             </div>
 
             <div class="flex items-center justify-end gap-2">

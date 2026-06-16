@@ -52,22 +52,22 @@ final class GalleryPermissions
     public static function groups(int $sortOrder = 85): array
     {
         return [[
-            'name' => 'Galerije',
+            'name' => 'gallery',
             'slug' => 'gallery',
-            'label' => 'Galerije',
-            'description' => 'Upravljanje galerijama, fotografijama, SEO podacima i generiranim veličinama.',
+            'label' => 'gallery::permissions.group',
+            'description' => 'gallery::permissions.description',
             'icon' => 'photo',
             'sort_order' => $sortOrder,
             'items' => [
-                ['name' => 'Pregled', 'slug' => 'view', 'code' => self::VIEW, 'label' => 'Pregled galerija', 'sort_order' => 10],
-                ['name' => 'Kreiranje', 'slug' => 'create', 'code' => self::CREATE, 'label' => 'Kreiranje galerija', 'sort_order' => 20],
-                ['name' => 'Uređivanje', 'slug' => 'update', 'code' => self::UPDATE, 'label' => 'Uređivanje galerija', 'sort_order' => 30],
-                ['name' => 'Upload', 'slug' => 'upload', 'code' => self::UPLOAD, 'label' => 'Dodavanje fotografija', 'sort_order' => 40],
-                ['name' => 'Dodjela', 'slug' => 'attach', 'code' => self::ATTACH, 'label' => 'Dodjela samostalnih galerija modelima', 'sort_order' => 45],
-                ['name' => 'SEO podaci', 'slug' => 'seo', 'code' => self::SEO, 'label' => 'Uređivanje SEO podataka slika', 'sort_order' => 50],
-                ['name' => 'Regeneriranje', 'slug' => 'regenerate', 'code' => self::REGENERATE, 'label' => 'Regeneriranje veličina slika', 'sort_order' => 60],
-                ['name' => 'Postavke', 'slug' => 'settings', 'code' => self::SETTINGS, 'label' => 'Upravljanje postavkama galerije', 'sort_order' => 70],
-                ['name' => 'Brisanje', 'slug' => 'delete', 'code' => self::DELETE, 'label' => 'Brisanje galerija i fotografija', 'sort_order' => 80],
+                ['name' => 'view', 'slug' => 'view', 'code' => self::VIEW, 'label' => 'gallery::permissions.view', 'sort_order' => 10],
+                ['name' => 'create', 'slug' => 'create', 'code' => self::CREATE, 'label' => 'gallery::permissions.create', 'sort_order' => 20],
+                ['name' => 'update', 'slug' => 'update', 'code' => self::UPDATE, 'label' => 'gallery::permissions.update', 'sort_order' => 30],
+                ['name' => 'upload', 'slug' => 'upload', 'code' => self::UPLOAD, 'label' => 'gallery::permissions.media_upload', 'sort_order' => 40],
+                ['name' => 'attach', 'slug' => 'attach', 'code' => self::ATTACH, 'label' => 'gallery::permissions.attach', 'sort_order' => 45],
+                ['name' => 'seo', 'slug' => 'seo', 'code' => self::SEO, 'label' => 'gallery::permissions.media_meta', 'sort_order' => 50],
+                ['name' => 'regenerate', 'slug' => 'regenerate', 'code' => self::REGENERATE, 'label' => 'gallery::permissions.regenerate', 'sort_order' => 60],
+                ['name' => 'settings', 'slug' => 'settings', 'code' => self::SETTINGS, 'label' => 'gallery::permissions.settings', 'sort_order' => 70],
+                ['name' => 'delete', 'slug' => 'delete', 'code' => self::DELETE, 'label' => 'gallery::permissions.delete', 'sort_order' => 80],
             ],
         ]];
     }

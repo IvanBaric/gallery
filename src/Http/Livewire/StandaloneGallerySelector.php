@@ -8,7 +8,9 @@ use Flux\Flux;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
-use InvalidArgumentException;
+use IvanBaric\Corexis\Data\ActionResult;
+use IvanBaric\Gallery\Actions\AttachGalleryToModelAction;
+use IvanBaric\Gallery\Actions\DetachGalleryFromModelAction;
 use IvanBaric\Gallery\Concerns\HasGalleries;
 use IvanBaric\Gallery\Contracts\TenantResolver;
 use IvanBaric\Gallery\Models\Gallery;
@@ -116,26 +118,20 @@ class StandaloneGallerySelector extends Component
             ]);
         }
 
-        if (! method_exists($this->subject, 'attachStandaloneGallery')) {
-            throw new \RuntimeException('The model must use '.HasGalleries::class.'.');
+        $result = app(AttachGalleryToModelAction::class)->handle(
+            $this->subject,
+            $gallery,
+            $this->collection,
+            $this->allowReplace,
+            $this->emptyOnly,
+        );
+
+        if (! $this->handleActionFailure($result, 'selectedGalleryUuid')) {
+            return;
         }
 
-        try {
-            $attached = $this->subject->attachStandaloneGallery(
-                $gallery,
-                $this->collection,
-                $this->allowReplace,
-                $this->emptyOnly,
-            );
-        } catch (InvalidArgumentException $exception) {
-            $message = $this->attachmentErrorMessage($exception->getMessage());
-
-            Flux::toast(variant: 'danger', text: $message);
-
-            throw ValidationException::withMessages([
-                'selectedGalleryUuid' => $message,
-            ]);
-        }
+        /** @var Gallery $attached */
+        $attached = $result->data;
 
         $this->selectedGalleryUuid = null;
         unset($this->subject, $this->currentGallery, $this->standaloneGalleries);
@@ -161,10 +157,11 @@ class StandaloneGallerySelector extends Component
             return;
         }
 
-        $gallery->forceFill([
-            'galleryable_type' => null,
-            'galleryable_id' => null,
-        ])->save();
+        $result = app(DetachGalleryFromModelAction::class)->handle($this->subject, $gallery, $this->collection);
+
+        if (! $this->handleActionFailure($result, 'gallery')) {
+            return;
+        }
 
         $this->selectedGalleryUuid = null;
         unset($this->subject, $this->currentGallery, $this->standaloneGalleries);
@@ -236,14 +233,24 @@ class StandaloneGallerySelector extends Component
         GalleryPermissions::authorize($action);
     }
 
-    private function attachmentErrorMessage(string $message): string
+    private function handleActionFailure(ActionResult $result, string $errorBag): bool
     {
-        return match ($message) {
-            'The model must be saved before attaching a gallery.' => __('Zapis mora biti spremljen prije povezivanja galerije.'),
-            'Only standalone galleries can be attached.' => __('Moguće je povezati samo samostalne galerije.'),
-            'Only empty standalone galleries can be attached.' => __('Moguće je povezati samo prazne samostalne galerije.'),
-            'The model already has a gallery for this collection.' => __('Zapis već ima galeriju za ovu kolekciju.'),
-            default => __('Galeriju nije moguće povezati.'),
-        };
+        if ($result->success) {
+            return true;
+        }
+
+        foreach ($result->errors as $field => $messages) {
+            foreach ((array) $messages as $message) {
+                $this->addError($errorBag === $field ? $field : $errorBag.'.'.$field, (string) $message);
+            }
+        }
+
+        Flux::toast(
+            heading: __('Radnja nije uspjela'),
+            text: $result->message,
+            variant: 'danger',
+        );
+
+        return false;
     }
 }

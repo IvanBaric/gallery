@@ -34,6 +34,7 @@ class GalleryServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'gallery');
+        $this->loadTranslationsFrom(__DIR__.'/../lang', 'gallery');
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
         $this->app['router']->aliasMiddleware('gallery.permission', EnsureGalleryPermission::class);
@@ -59,6 +60,10 @@ class GalleryServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__.'/../resources/views' => resource_path('views/vendor/gallery'),
             ], 'gallery-views');
+
+            $this->publishes([
+                __DIR__.'/../lang' => lang_path('vendor/gallery'),
+            ], 'gallery-translations');
 
             $this->publishes([
                 __DIR__.'/../database/migrations' => database_path('migrations'),

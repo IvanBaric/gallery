@@ -6,7 +6,10 @@ namespace IvanBaric\Gallery\Http\Livewire;
 
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Builder;
+use IvanBaric\Corexis\Data\ActionResult;
+use IvanBaric\Gallery\Actions\CreateGalleryAction;
 use IvanBaric\Gallery\Jobs\RegenerateGalleryConversions;
+use IvanBaric\Gallery\Livewire\Forms\GalleryForm;
 use IvanBaric\Gallery\Models\Gallery;
 use IvanBaric\Gallery\Support\GalleryPermissions;
 use IvanBaric\Gallery\Support\GallerySettings;
@@ -28,9 +31,7 @@ class GalleryIndex extends Component
 
     public array $sizeSettings = [];
 
-    public array $createForm = [
-        'title' => '',
-    ];
+    public GalleryForm $createForm;
 
     public function mount(): void
     {
@@ -85,28 +86,26 @@ class GalleryIndex extends Component
     public function openCreateGalleryModal(): void
     {
         $this->authorizeGalleryAction('create');
-        $this->createForm = ['title' => ''];
-        $this->resetValidation('createForm.title');
+        $this->createForm->resetForm();
+        $this->resetValidation();
         $this->dispatch('modal-show', name: 'gallery-create');
     }
 
     public function createGallery(): void
     {
-        $this->authorizeGalleryAction('create');
+        $this->createForm->validate();
 
-        $validated = $this->validate([
-            'createForm.title' => ['required', 'string', 'max:180'],
-        ], [
-            'createForm.title.required' => __('Unesite naziv galerije.'),
-            'createForm.title.max' => __('Naziv galerije može imati najviše :max znakova.'),
-        ], [
-            'createForm.title' => __('naziv galerije'),
-        ]);
-
-        $gallery = Gallery::query()->create([
-            'title' => trim((string) $validated['createForm']['title']),
+        $result = app(CreateGalleryAction::class)->handle([
+            ...$this->createForm->data(),
             'collection_name' => 'images',
         ]);
+
+        if (! $this->handleActionFailure($result, 'createForm')) {
+            return;
+        }
+
+        /** @var Gallery $gallery */
+        $gallery = $result->data;
 
         $this->dispatch('modal-close', name: 'gallery-create');
 
@@ -300,5 +299,26 @@ class GalleryIndex extends Component
     private function authorizeGalleryAction(string $action): void
     {
         GalleryPermissions::authorize($action);
+    }
+
+    private function handleActionFailure(ActionResult $result, string $errorBag): bool
+    {
+        if ($result->success) {
+            return true;
+        }
+
+        foreach ($result->errors as $field => $messages) {
+            foreach ((array) $messages as $message) {
+                $this->addError($errorBag.'.'.$field, (string) $message);
+            }
+        }
+
+        Flux::toast(
+            heading: __('Radnja nije uspjela'),
+            text: $result->message,
+            variant: 'danger',
+        );
+
+        return false;
     }
 }

@@ -23,13 +23,13 @@ return new class extends Migration
                 $table->text('description')->nullable();
                 $table->unsignedBigInteger('featured_media_id')->nullable()->index();
                 $table->string('tenant_type')->nullable()->index();
-                $table->string('tenant_id')->nullable()->index();
+                $table->string('team_id')->nullable()->index();
                 $table->uuid('tenant_uuid')->nullable()->index();
                 $table->json('custom_properties')->nullable();
                 $table->timestamps();
 
                 $table->index(['galleryable_type', 'galleryable_id', 'collection_name'], 'galleries_owner_collection_index');
-                $table->index(['tenant_type', 'tenant_id', 'collection_name'], 'galleries_tenant_collection_index');
+                $table->index(['tenant_type', 'team_id', 'collection_name'], 'galleries_tenant_collection_index');
             });
         }
 

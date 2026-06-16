@@ -9,6 +9,9 @@ The package is intentionally generic. It can be used for any model or project th
 - Gallery model with optional owner relation to any Eloquent model.
 - Custom Media model with tenant-aware access helpers and alt text helper.
 - `HasGalleries` trait for attaching galleries to existing models.
+- Action classes for gallery, media and standalone assignment write workflows.
+- Domain events for successful gallery and media state changes.
+- Livewire Form Objects for gallery metadata and media metadata forms.
 - Livewire admin manager component for uploads, ordering, featured image, SEO metadata and deletion.
 - Admin gallery index and edit screens.
 - Standalone gallery selector for assigning empty standalone galleries to any model with `flux:select`.
@@ -27,6 +30,45 @@ The package is intentionally generic. It can be used for any model or project th
 - Flux UI
 - Spatie Media Library 11
 - `ivanbaric/admin-ui` for the admin screens
+- `ivanbaric/corexis` for `ActionResult` and domain event contracts
+
+## Architecture
+
+Write workflows follow the ecosystem package standard:
+
+```text
+Livewire Component -> Livewire Form Object -> Action -> Corexis ActionResult -> Domain Event -> Listener
+```
+
+The package keeps Spatie Media Library integration inside `gallery`, but it does not know about pages, blog posts, products or other content packages. Other packages should react to gallery events through listeners instead of being called directly from gallery actions.
+
+Current Actions:
+
+- `CreateGalleryAction`
+- `UpdateGalleryAction`
+- `DeleteGalleryAction`
+- `UploadGalleryMediaAction`
+- `DeleteGalleryMediaAction`
+- `ReorderGalleryMediaAction`
+- `SetFeaturedGalleryMediaAction`
+- `UpdateGalleryMediaMetaAction`
+- `AttachGalleryToModelAction`
+- `DetachGalleryFromModelAction`
+
+Current Events:
+
+- `GalleryCreated`
+- `GalleryUpdated`
+- `GalleryDeleted`
+- `GalleryMediaUploaded`
+- `GalleryMediaDeleted`
+- `GalleryMediaReordered`
+- `GalleryMediaFeatured`
+- `GalleryMediaMetaUpdated`
+- `GalleryAttachedToModel`
+- `GalleryDetachedFromModel`
+
+Livewire components coordinate UI state, Flux modals, toasts and redirects. Business writes belong in Actions and return `IvanBaric\Corexis\Data\ActionResult`.
 
 ## Installation
 
@@ -129,7 +171,7 @@ The package ships a ready-made Flux selector:
 />
 ```
 
-By default the selector lists only empty standalone galleries for the selected collection. When the user clicks the button, the selected gallery is assigned to the model by filling `galleryable_type`, `galleryable_id` and `collection_name`.
+By default the selector lists only empty standalone galleries for the selected collection. When the user clicks the button, the selected gallery is assigned through `AttachGalleryToModelAction`.
 
 Selector options:
 
@@ -140,9 +182,10 @@ Selector options:
 - `showCurrent`: show the currently assigned gallery, default `true`.
 - `label`, `placeholder`, `buttonLabel`, `description`: UI text overrides.
 
-You can also use the backend helper directly in your own Livewire form:
+You can also use the backend action directly in your own Livewire form:
 
 ```php
+use IvanBaric\Gallery\Actions\AttachGalleryToModelAction;
 use IvanBaric\Gallery\Models\Gallery;
 
 $gallery = Gallery::query()
@@ -151,7 +194,7 @@ $gallery = Gallery::query()
     ->where('uuid', $this->galleryUuid)
     ->firstOrFail();
 
-$post->attachStandaloneGallery($gallery, collection: 'images');
+$result = app(AttachGalleryToModelAction::class)->handle($post, $gallery, collection: 'images');
 ```
 
 If the model already has a gallery for the collection, `attachStandaloneGallery()` refuses to replace it unless you pass `replace: true`:

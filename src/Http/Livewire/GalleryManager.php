@@ -7,10 +7,17 @@ namespace IvanBaric\Gallery\Http\Livewire;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
+use IvanBaric\Corexis\Data\ActionResult;
+use IvanBaric\Gallery\Actions\DeleteGalleryAction;
+use IvanBaric\Gallery\Actions\DeleteGalleryMediaAction;
+use IvanBaric\Gallery\Actions\ReorderGalleryMediaAction;
+use IvanBaric\Gallery\Actions\SetFeaturedGalleryMediaAction;
+use IvanBaric\Gallery\Actions\UpdateGalleryMediaMetaAction;
+use IvanBaric\Gallery\Actions\UploadGalleryMediaAction;
 use IvanBaric\Gallery\Concerns\HasGalleries;
 use IvanBaric\Gallery\Jobs\RegenerateGalleryConversions;
+use IvanBaric\Gallery\Livewire\Forms\GalleryMediaForm;
 use IvanBaric\Gallery\Models\Gallery;
-use IvanBaric\Gallery\Models\Media;
 use IvanBaric\Gallery\Support\GalleryPermissions;
 use IvanBaric\Gallery\Support\GallerySettings;
 use Livewire\Attributes\Computed;
@@ -49,16 +56,7 @@ class GalleryManager extends Component
 
     public ?int $editingMediaId = null;
 
-    public array $mediaForm = [
-        'alt' => '',
-        'title' => '',
-        'caption' => '',
-        'description' => '',
-        'credit' => '',
-        'source_url' => '',
-        'license' => '',
-        'is_decorative' => false,
-    ];
+    public GalleryMediaForm $mediaForm;
 
     public string $modalKey;
 
@@ -102,26 +100,13 @@ class GalleryManager extends Component
         $this->validateUploadPayload();
 
         $gallery = $this->currentGallery(create: true);
+        $count = count($this->uploads);
+        $result = app(UploadGalleryMediaAction::class)->handle($gallery, $this->uploads, $this->collection);
 
-        foreach ($this->uploads as $upload) {
-            $gallery
-                ->addMedia($upload->getRealPath())
-                ->usingFileName($upload->hashName())
-                ->usingName(pathinfo($upload->getClientOriginalName(), PATHINFO_FILENAME) ?: $upload->hashName())
-                ->withCustomProperties([
-                    'alt' => '',
-                    'title' => '',
-                    'caption' => '',
-                    'description' => '',
-                    'credit' => '',
-                    'source_url' => '',
-                    'license' => '',
-                    'is_decorative' => false,
-                ])
-                ->toMediaCollection($this->collection);
+        if (! $this->handleActionFailure($result, 'uploads')) {
+            return;
         }
 
-        $count = count($this->uploads);
         $this->reset('uploads');
         unset($this->subject, $this->gallery, $this->mediaItems);
 
@@ -195,21 +180,15 @@ class GalleryManager extends Component
         }
 
         $gallery = $this->currentGallery();
-        $featuredDeleted = $media->contains(fn (SpatieMedia $item): bool => (int) $gallery->featured_media_id === (int) $item->id);
+        $count = $media->count();
+        $result = app(DeleteGalleryMediaAction::class)->handle($gallery, $media->all());
 
-        foreach ($media as $item) {
-            $item->delete();
-        }
-
-        if ($featuredDeleted) {
-            $gallery->forceFill(['featured_media_id' => null])->save();
-        } else {
-            $gallery->touch();
+        if (! $this->handleActionFailure($result, 'selectedMediaIds')) {
+            return;
         }
 
         $this->deleteAttachedGalleryIfEmpty($gallery);
 
-        $count = $media->count();
         $this->selectedMediaIds = [];
         $this->selectMode = false;
         $this->dispatch('modal-close', name: $this->bulkDeleteModalName());
@@ -251,35 +230,27 @@ class GalleryManager extends Component
 
     public function reorderMedia(int $mediaId, int $position): void
     {
-        $this->authorizeGalleryAction('update');
-
         $gallery = $this->currentGallery()->fresh();
 
-        $ids = $gallery->getMedia($this->collection)
-            ->pluck('id')
-            ->map(fn ($id): int => (int) $id)
-            ->reject(fn (int $id): bool => $id === $mediaId)
-            ->values()
-            ->all();
+        $result = app(ReorderGalleryMediaAction::class)->handle($gallery, $mediaId, $position, $this->collection);
 
-        $position = max(0, min($position, count($ids)));
-        array_splice($ids, $position, 0, [$mediaId]);
+        if (! $this->handleActionFailure($result, 'media')) {
+            return;
+        }
 
-        Media::setNewOrder($ids);
-
-        $gallery->touch();
         $gallery->unsetRelation('media');
         unset($this->subject, $this->gallery, $this->mediaItems);
     }
 
     public function setFeaturedMedia(int $mediaId): void
     {
-        $this->authorizeGalleryAction('update');
-
-        $media = $this->mediaInGallery($mediaId);
         $gallery = $this->currentGallery();
+        $result = app(SetFeaturedGalleryMediaAction::class)->handle($gallery, $mediaId);
 
-        $gallery->forceFill(['featured_media_id' => $media->id])->save();
+        if (! $this->handleActionFailure($result, 'media')) {
+            return;
+        }
+
         unset($this->gallery, $this->mediaItems);
 
         Flux::toast(
@@ -296,16 +267,7 @@ class GalleryManager extends Component
         $media = $this->mediaInGallery($mediaId);
 
         $this->editingMediaId = $media->id;
-        $this->mediaForm = [
-            'alt' => (string) $media->getCustomProperty('alt', ''),
-            'title' => (string) $media->getCustomProperty('title', $media->name),
-            'caption' => (string) $media->getCustomProperty('caption', ''),
-            'description' => (string) $media->getCustomProperty('description', ''),
-            'credit' => (string) $media->getCustomProperty('credit', ''),
-            'source_url' => (string) $media->getCustomProperty('source_url', ''),
-            'license' => (string) $media->getCustomProperty('license', ''),
-            'is_decorative' => (bool) $media->getCustomProperty('is_decorative', false),
-        ];
+        $this->mediaForm->fillFromMedia($media);
 
         $this->dispatch('modal-show', name: $this->metaModalName());
     }
@@ -318,33 +280,18 @@ class GalleryManager extends Component
             return;
         }
 
-        $validated = $this->validate([
-            'mediaForm.alt' => ['nullable', 'string', 'max:180'],
-            'mediaForm.title' => ['nullable', 'string', 'max:180'],
-            'mediaForm.caption' => ['nullable', 'string', 'max:500'],
-            'mediaForm.description' => ['nullable', 'string', 'max:2000'],
-            'mediaForm.credit' => ['nullable', 'string', 'max:180'],
-            'mediaForm.source_url' => ['nullable', 'url', 'max:2048'],
-            'mediaForm.license' => ['nullable', 'string', 'max:180'],
-            'mediaForm.is_decorative' => ['boolean'],
-        ]);
+        $this->mediaForm->validate();
 
         $media = $this->mediaInGallery($this->editingMediaId);
-        $form = $validated['mediaForm'];
+        $result = app(UpdateGalleryMediaMetaAction::class)->handle(
+            $this->currentGallery(),
+            $media,
+            $this->mediaForm->data(),
+        );
 
-        $media->name = filled($form['title'] ?? null) ? (string) $form['title'] : $media->name;
-        $media->custom_properties = array_merge($media->custom_properties ?? [], [
-            'alt' => ($form['alt'] ?? '') ?: null,
-            'title' => ($form['title'] ?? '') ?: null,
-            'caption' => ($form['caption'] ?? '') ?: null,
-            'description' => ($form['description'] ?? '') ?: null,
-            'credit' => ($form['credit'] ?? '') ?: null,
-            'source_url' => ($form['source_url'] ?? '') ?: null,
-            'license' => ($form['license'] ?? '') ?: null,
-            'is_decorative' => (bool) ($form['is_decorative'] ?? false),
-        ]);
-        $media->save();
-        $this->currentGallery()->touch();
+        if (! $this->handleActionFailure($result, 'mediaForm')) {
+            return;
+        }
 
         $this->dispatch('modal-close', name: $this->metaModalName());
         $this->reset('editingMediaId');
@@ -382,14 +329,10 @@ class GalleryManager extends Component
 
         $media = $this->mediaInGallery($this->pendingDeleteMediaId);
         $gallery = $this->currentGallery();
-        $wasFeatured = (int) $gallery->featured_media_id === (int) $media->id;
+        $result = app(DeleteGalleryMediaAction::class)->handle($gallery, [$media]);
 
-        $media->delete();
-
-        if ($wasFeatured) {
-            $gallery->forceFill(['featured_media_id' => null])->save();
-        } else {
-            $gallery->touch();
+        if (! $this->handleActionFailure($result, 'pendingDeleteMediaId')) {
+            return;
         }
 
         $this->deleteAttachedGalleryIfEmpty($gallery);
@@ -599,6 +542,27 @@ class GalleryManager extends Component
         GalleryPermissions::authorize($action);
     }
 
+    private function handleActionFailure(ActionResult $result, string $errorBag): bool
+    {
+        if ($result->success) {
+            return true;
+        }
+
+        foreach ($result->errors as $field => $messages) {
+            foreach ((array) $messages as $message) {
+                $this->addError($errorBag === $field ? $field : $errorBag.'.'.$field, (string) $message);
+            }
+        }
+
+        Flux::toast(
+            heading: __('Radnja nije uspjela'),
+            text: $result->message,
+            variant: 'danger',
+        );
+
+        return false;
+    }
+
     private function mediaInGallery(int $mediaId): SpatieMedia
     {
         $media = $this->mediaItems->firstWhere('id', $mediaId);
@@ -635,6 +599,6 @@ class GalleryManager extends Component
             return;
         }
 
-        $gallery->delete();
+        $this->handleActionFailure(app(DeleteGalleryAction::class)->handle($gallery), 'gallery');
     }
 }

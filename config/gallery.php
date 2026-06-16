@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use IvanBaric\Gallery\Models\Gallery;
 use IvanBaric\Gallery\Models\Media;
-use IvanBaric\Gallery\Resolvers\NullTenantResolver;
+use IvanBaric\Gallery\Resolvers\CorexisTenantResolver;
 use IvanBaric\Gallery\Support\GalleryPermissions;
 
 return [
@@ -37,6 +37,26 @@ return [
         'enabled' => env('GALLERY_PERMISSIONS_ENABLED', false),
         'actions' => GalleryPermissions::defaults(),
         'groups' => GalleryPermissions::groups(),
+    ],
+
+    'velora_permissions' => [
+        [
+            'name' => 'gallery',
+            'slug' => 'gallery',
+            'label' => 'gallery::permissions.group',
+            'description' => 'gallery::permissions.description',
+            'icon' => 'images',
+            'sort_order' => 40,
+            'items' => [
+                ['name' => 'View', 'slug' => 'view', 'code' => 'gallery.view', 'label' => 'gallery::permissions.view', 'sort_order' => 10],
+                ['name' => 'Create', 'slug' => 'create', 'code' => 'gallery.create', 'label' => 'gallery::permissions.create', 'sort_order' => 20],
+                ['name' => 'Update', 'slug' => 'update', 'code' => 'gallery.update', 'label' => 'gallery::permissions.update', 'sort_order' => 30],
+                ['name' => 'Delete', 'slug' => 'delete', 'code' => 'gallery.delete', 'label' => 'gallery::permissions.delete', 'sort_order' => 40],
+                ['name' => 'Upload media', 'slug' => 'upload', 'code' => GalleryPermissions::UPLOAD, 'label' => 'gallery::permissions.media_upload', 'sort_order' => 50],
+                ['name' => 'Attach galleries', 'slug' => 'attach', 'code' => GalleryPermissions::ATTACH, 'label' => 'gallery::permissions.attach', 'sort_order' => 60],
+                ['name' => 'Update media metadata', 'slug' => 'seo', 'code' => GalleryPermissions::SEO, 'label' => 'gallery::permissions.media_meta', 'sort_order' => 70],
+            ],
+        ],
     ],
 
     'deletion' => [
@@ -134,8 +154,8 @@ return [
 
     'tenancy' => [
         'enabled' => env('GALLERY_TENANCY_ENABLED', false),
-        'resolver' => NullTenantResolver::class,
-        'id_column' => env('GALLERY_TENANT_ID_COLUMN', 'tenant_id'),
+        'resolver' => CorexisTenantResolver::class,
+        'id_column' => env('GALLERY_TENANT_ID_COLUMN', env('COREXIS_TENANT_ID_COLUMN', 'team_id')),
         'uuid_column' => env('GALLERY_TENANT_UUID_COLUMN', 'tenant_uuid'),
         'type_column' => env('GALLERY_TENANT_TYPE_COLUMN', 'tenant_type'),
         'fail_when_unresolved' => env('GALLERY_TENANCY_FAIL_WHEN_UNRESOLVED', false),

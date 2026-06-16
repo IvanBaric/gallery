@@ -47,7 +47,7 @@ class Media extends SpatieMedia
             return true;
         }
 
-        return (string) $gallery->getAttribute((string) config('gallery.tenancy.id_column', 'tenant_id')) === (string) $resolver->id();
+        return (string) $gallery->getAttribute((string) config('gallery.tenancy.id_column', 'team_id')) === (string) $resolver->id();
     }
 
     public function altText(?string $fallback = null): string

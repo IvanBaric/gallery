@@ -89,7 +89,7 @@ class Gallery extends Model implements HasMedia
             return $query;
         }
 
-        return $query->where((string) config('gallery.tenancy.id_column', 'tenant_id'), (string) $tenantId);
+        return $query->where((string) config('gallery.tenancy.id_column', 'team_id'), (string) $tenantId);
     }
 
     public function displayTitle(): string
@@ -249,7 +249,7 @@ class Gallery extends Model implements HasMedia
                 return;
             }
 
-            $gallery->setAttribute((string) config('gallery.tenancy.id_column', 'tenant_id'), (string) $tenantId);
+            $gallery->setAttribute((string) config('gallery.tenancy.id_column', 'team_id'), (string) $tenantId);
             $gallery->setAttribute((string) config('gallery.tenancy.uuid_column', 'tenant_uuid'), $resolver->uuid());
             $gallery->setAttribute((string) config('gallery.tenancy.type_column', 'tenant_type'), $resolver->type());
         });

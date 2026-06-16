@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace IvanBaric\Gallery\Http\Livewire;
 
 use Flux\Flux;
+use IvanBaric\Corexis\Data\ActionResult;
+use IvanBaric\Gallery\Actions\DeleteGalleryAction;
+use IvanBaric\Gallery\Actions\UpdateGalleryAction;
 use IvanBaric\Gallery\Jobs\RegenerateGalleryConversions;
+use IvanBaric\Gallery\Livewire\Forms\GalleryForm;
 use IvanBaric\Gallery\Models\Gallery;
 use IvanBaric\Gallery\Support\GalleryPermissions;
 use Livewire\Attributes\Locked;
@@ -19,9 +23,7 @@ class GalleryEdit extends Component
     #[Locked]
     public Gallery $gallery;
 
-    public string $title = '';
-
-    public ?string $description = null;
+    public GalleryForm $form;
 
     public string $deletePassword = '';
 
@@ -54,17 +56,15 @@ class GalleryEdit extends Component
 
     public function saveMeta(): void
     {
-        $this->authorizeGalleryAction('update');
+        $this->form->validate();
 
-        $validated = $this->validate([
-            'title' => ['required', 'string', 'max:180'],
-            'description' => ['nullable', 'string', 'max:2000'],
-        ]);
+        $result = app(UpdateGalleryAction::class)->handle($this->gallery, $this->form->data());
 
-        $this->gallery->forceFill([
-            'title' => $validated['title'],
-            'description' => $validated['description'],
-        ])->save();
+        if (! $this->handleActionFailure($result, 'form')) {
+            return;
+        }
+
+        $this->gallery->refresh();
 
         Flux::toast(
             heading: __('Galerija spremljena'),
@@ -116,8 +116,11 @@ class GalleryEdit extends Component
 
         $galleryTitle = $this->gallery->displayTitle();
 
-        $this->gallery->clearMediaCollection($this->gallery->collection_name);
-        $this->gallery->delete();
+        $result = app(DeleteGalleryAction::class)->handle($this->gallery);
+
+        if (! $this->handleActionFailure($result, 'deletePassword')) {
+            return;
+        }
 
         $this->dispatch('modal-close', name: 'gallery-delete-confirm');
 
@@ -168,12 +171,33 @@ class GalleryEdit extends Component
             ->where('uuid', $this->uuid)
             ->firstOrFail();
 
-        $this->title = (string) ($this->gallery->title ?: $this->gallery->displayTitle());
-        $this->description = $this->gallery->description;
+        $this->form->fillFromModel($this->gallery);
     }
 
     private function authorizeGalleryAction(string $action): void
     {
         GalleryPermissions::authorize($action);
+    }
+
+    private function handleActionFailure(ActionResult $result, string $errorBag): bool
+    {
+        if ($result->success) {
+            return true;
+        }
+
+        foreach ($result->errors as $field => $messages) {
+            foreach ((array) $messages as $message) {
+                $key = $errorBag === $field ? $field : $errorBag.'.'.$field;
+                $this->addError($key, (string) $message);
+            }
+        }
+
+        Flux::toast(
+            heading: __('Radnja nije uspjela'),
+            text: $result->message,
+            variant: 'danger',
+        );
+
+        return false;
     }
 }
