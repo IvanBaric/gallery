@@ -90,6 +90,10 @@ final class GalleryPermissions
 
     public static function allows(mixed $user, string $action): bool
     {
+        if (self::requiresSuperadmin($action) && ! self::isSuperadmin($user)) {
+            return false;
+        }
+
         if (! self::enabled()) {
             return true;
         }
@@ -114,5 +118,31 @@ final class GalleryPermissions
     public static function authorize(string $action): void
     {
         abort_unless(self::allows(auth()->user(), $action), 403);
+    }
+
+    private static function requiresSuperadmin(string $action): bool
+    {
+        if (! (bool) config('gallery.admin.advanced_controls.superadmin_only', false)) {
+            return false;
+        }
+
+        $actions = (array) config('gallery.admin.advanced_controls.actions', ['settings', 'regenerate']);
+
+        return in_array($action, $actions, true);
+    }
+
+    private static function isSuperadmin(mixed $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        $attribute = (string) config('gallery.admin.advanced_controls.superadmin_attribute', 'is_superadmin');
+
+        if ($attribute === '') {
+            return false;
+        }
+
+        return (bool) data_get($user, $attribute);
     }
 }

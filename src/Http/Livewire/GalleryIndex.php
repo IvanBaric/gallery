@@ -222,6 +222,11 @@ class GalleryIndex extends Component
     #[Computed]
     public function galleries()
     {
+        $sortField = in_array($this->sortField, ['images_count', 'created_at', 'updated_at'], true)
+            ? $this->sortField
+            : 'updated_at';
+        $sortDirection = $this->sortDirection === 'asc' ? 'asc' : 'desc';
+
         return Gallery::query()
             ->forCurrentTenant()
             ->with(['media', 'featuredMedia', 'galleryable'])
@@ -237,7 +242,7 @@ class GalleryIndex extends Component
             })
             ->when($this->filter === 'empty', fn (Builder $query): Builder => $query->whereDoesntHave('media'))
             ->when($this->filter === 'without_featured', fn (Builder $query): Builder => $query->whereNull('featured_media_id')->has('media'))
-            ->orderBy($this->sortField, $this->sortDirection)
+            ->orderBy($sortField, $sortDirection)
             ->latest('id')
             ->simplePaginate(18);
     }

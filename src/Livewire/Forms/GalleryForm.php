@@ -13,6 +13,8 @@ final class GalleryForm extends Form
 
     public ?string $description = null;
 
+    public ?int $lock_version = null;
+
     /**
      * @return array<string, mixed>
      */
@@ -21,6 +23,7 @@ final class GalleryForm extends Form
         return [
             'title' => ['required', 'string', 'max:180'],
             'description' => ['nullable', 'string', 'max:2000'],
+            'lock_version' => ['nullable', 'integer', 'min:0'],
         ];
     }
 
@@ -39,16 +42,18 @@ final class GalleryForm extends Form
     {
         $this->title = (string) ($gallery->title ?: $gallery->displayTitle());
         $this->description = $gallery->description;
+        $this->lock_version = method_exists($gallery, 'getLockVersion') ? $gallery->getLockVersion() : (int) ($gallery->lock_version ?? 0);
     }
 
     /**
-     * @return array{title: string, description: string|null}
+     * @return array{title: string, description: string|null, lock_version: int|null}
      */
     public function data(): array
     {
         return [
             'title' => trim($this->title),
             'description' => $this->description,
+            'lock_version' => $this->lock_version,
         ];
     }
 
@@ -56,5 +61,6 @@ final class GalleryForm extends Form
     {
         $this->title = '';
         $this->description = null;
+        $this->lock_version = null;
     }
 }

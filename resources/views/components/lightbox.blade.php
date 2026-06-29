@@ -85,9 +85,9 @@
                 ] : null;
             }
 
-            $main = $mediaUrl($item, [$mainConversion, 'large', 'medium_large']);
+            $main = $mediaUrl($item, [$mainConversion, 'large']);
             $lightbox = $mediaUrl($item, [$lightboxConversion, $mainConversion, 'xlarge', 'large']);
-            $thumb = $mediaUrl($item, [$thumbnailConversion, 'thumb', 'thumbnail']);
+            $thumb = $mediaUrl($item, [$thumbnailConversion, 'thumb']);
 
             if (! $main) {
                 return null;
@@ -318,107 +318,109 @@
         @endif
     </div>
 
-    <div
-        x-show="open"
-        x-cloak
-        x-transition:enter="transition duration-200 ease-out"
-        x-transition:enter-start="opacity-0"
-        x-transition:enter-end="opacity-100"
-        x-transition:leave="transition duration-150 ease-in"
-        x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-        @click.self="close()"
-        class="fixed inset-0 z-[60] flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-zinc-950/92 backdrop-blur-md"
-        role="dialog"
-        aria-modal="true"
-        aria-label="{{ $dialogLabel }}"
-        style="display: none;"
-    >
-        <header class="shrink-0 flex items-center justify-between gap-4 px-5 pt-4 sm:px-8 sm:pt-6">
-            @if ($showCounter)
-                <p class="text-[13px] font-medium text-white/80">
-                    <span class="tabular-nums text-white" x-text="active + 1"></span>
-                    <span class="mx-1.5 text-white/30">/</span>
-                    <span class="tabular-nums text-white/60" x-text="images.length"></span>
-                </p>
-            @else
-                <span></span>
-            @endif
-            @if ($showLightboxTitle && filled($title))
-                <p class="hidden truncate text-[13px] text-white/60 sm:block">{{ $title }}</p>
-            @endif
-            <button
-                type="button"
-                @click="close()"
-                class="inline-flex size-10 items-center justify-center rounded-full bg-white/5 text-white ring-1 ring-white/10 transition duration-150 ease-out hover:bg-white/15 hover:ring-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
-                aria-label="{{ $closeLabel }}"
-            >
-                <flux:icon.x-mark class="size-5" />
-            </button>
-        </header>
-
+    <template x-teleport="body">
         <div
-            class="relative flex min-h-0 flex-1 items-center justify-center px-4 py-3 sm:px-16 sm:py-5"
-            @touchstart.passive="onSwipeStart($event)"
-            @touchend.passive="onSwipeEnd($event)"
+            x-show="open"
+            x-cloak
+            x-transition:enter="transition duration-200 ease-out"
+            x-transition:enter-start="opacity-0"
+            x-transition:enter-end="opacity-100"
+            x-transition:leave="transition duration-150 ease-in"
+            x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0"
+            @click.self="close()"
+            class="fixed inset-0 z-[60] flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-zinc-950/92 backdrop-blur-md"
+            role="dialog"
+            aria-modal="true"
+            aria-label="{{ $dialogLabel }}"
+            style="display: none;"
         >
-            <template x-if="images.length > 1">
+            <header class="shrink-0 flex items-center justify-between gap-4 px-5 pt-4 sm:px-8 sm:pt-6">
+                @if ($showCounter)
+                    <p class="text-[13px] font-medium text-white/80">
+                        <span class="tabular-nums text-white" x-text="active + 1"></span>
+                        <span class="mx-1.5 text-white/30">/</span>
+                        <span class="tabular-nums text-white/60" x-text="images.length"></span>
+                    </p>
+                @else
+                    <span></span>
+                @endif
+                @if ($showLightboxTitle && filled($title))
+                    <p class="hidden truncate text-[13px] text-white/60 sm:block">{{ $title }}</p>
+                @endif
                 <button
                     type="button"
-                    @click.stop="prev()"
-                    class="absolute left-3 top-1/2 z-10 inline-flex size-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/5 text-white ring-1 ring-white/10 transition duration-150 ease-out hover:bg-white/15 hover:ring-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 sm:left-6"
-                    aria-label="{{ $previousLabel }}"
+                    @click="close()"
+                    class="inline-flex size-10 items-center justify-center rounded-full bg-white/5 text-white ring-1 ring-white/10 transition duration-150 ease-out hover:bg-white/15 hover:ring-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                    aria-label="{{ $closeLabel }}"
                 >
-                    <flux:icon.chevron-left class="size-6" />
+                    <flux:icon.x-mark class="size-5" />
                 </button>
-            </template>
+            </header>
 
-            <template x-if="current">
-                <div class="flex h-full max-h-full min-h-0 max-w-full items-center justify-center" :key="active">
-                    <img
-                        :src="current.lightbox"
-                        :alt="current.alt"
-                        @load="loaded = true"
-                        x-on:error="loaded = true"
-                        class="max-h-full max-w-full select-none object-contain transition duration-200 ease-out"
-                        :class="loaded ? 'opacity-100 scale-100' : 'opacity-0 scale-[0.98]'"
-                        draggable="false"
-                    />
-                </div>
-            </template>
+            <div
+                class="relative flex min-h-0 flex-1 items-center justify-center px-4 py-3 sm:px-16 sm:py-5"
+                @touchstart.passive="onSwipeStart($event)"
+                @touchend.passive="onSwipeEnd($event)"
+            >
+                <template x-if="images.length > 1">
+                    <button
+                        type="button"
+                        @click.stop="prev()"
+                        class="absolute left-3 top-1/2 z-10 inline-flex size-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/5 text-white ring-1 ring-white/10 transition duration-150 ease-out hover:bg-white/15 hover:ring-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 sm:left-6"
+                        aria-label="{{ $previousLabel }}"
+                    >
+                        <flux:icon.chevron-left class="size-6" />
+                    </button>
+                </template>
 
-            <template x-if="images.length > 1">
-                <button
-                    type="button"
-                    @click.stop="next()"
-                    class="absolute right-3 top-1/2 z-10 inline-flex size-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/5 text-white ring-1 ring-white/10 transition duration-150 ease-out hover:bg-white/15 hover:ring-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 sm:right-6"
-                    aria-label="{{ $nextLabel }}"
-                >
-                    <flux:icon.chevron-right class="size-6" />
-                </button>
-            </template>
-        </div>
-
-        @if ($showThumbnails)
-            <template x-if="images.length > 1">
-                <div class="shrink-0 px-4 pb-4 sm:px-8 sm:pb-5">
-                    <div x-ref="lightboxStrip" class="mx-auto flex max-w-full gap-2 overflow-x-auto px-1 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                        <template x-for="(img, i) in images" :key="i">
-                            <button
-                                type="button"
-                                @click.stop="select(i)"
-                                :data-active="active === i"
-                                :class="active === i ? 'ring-2 ring-white opacity-100' : 'ring-1 ring-white/15 opacity-55 hover:opacity-90'"
-                                class="relative h-16 w-24 shrink-0 overflow-hidden rounded-lg bg-zinc-900 transition duration-150 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                                :aria-label="'{{ $thumbnailLabel }} ' + (i + 1)"
-                                :aria-current="active === i ? 'true' : 'false'"
-                            >
-                                <img :src="img.thumb" :alt="img.alt" class="h-full w-full {{ $thumbnailImageClass }}" loading="lazy" draggable="false" />
-                            </button>
-                        </template>
+                <template x-if="current">
+                    <div class="flex h-full max-h-full min-h-0 max-w-full items-center justify-center" :key="active">
+                        <img
+                            :src="current.lightbox"
+                            :alt="current.alt"
+                            @load="loaded = true"
+                            x-on:error="loaded = true"
+                            class="max-h-full max-w-full select-none object-contain transition duration-200 ease-out"
+                            :class="loaded ? 'opacity-100 scale-100' : 'opacity-0 scale-[0.98]'"
+                            draggable="false"
+                        />
                     </div>
-                </div>
-            </template>
-        @endif
-    </div>
+                </template>
+
+                <template x-if="images.length > 1">
+                    <button
+                        type="button"
+                        @click.stop="next()"
+                        class="absolute right-3 top-1/2 z-10 inline-flex size-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/5 text-white ring-1 ring-white/10 transition duration-150 ease-out hover:bg-white/15 hover:ring-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 sm:right-6"
+                        aria-label="{{ $nextLabel }}"
+                    >
+                        <flux:icon.chevron-right class="size-6" />
+                    </button>
+                </template>
+            </div>
+
+            @if ($showThumbnails)
+                <template x-if="images.length > 1">
+                    <div class="shrink-0 px-4 pb-4 sm:px-8 sm:pb-5">
+                        <div x-ref="lightboxStrip" class="mx-auto flex max-w-full gap-2 overflow-x-auto px-1 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            <template x-for="(img, i) in images" :key="i">
+                                <button
+                                    type="button"
+                                    @click.stop="select(i)"
+                                    :data-active="active === i"
+                                    :class="active === i ? 'ring-2 ring-white opacity-100' : 'ring-1 ring-white/15 opacity-55 hover:opacity-90'"
+                                    class="relative h-16 w-24 shrink-0 overflow-hidden rounded-lg bg-zinc-900 transition duration-150 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                                    :aria-label="'{{ $thumbnailLabel }} ' + (i + 1)"
+                                    :aria-current="active === i ? 'true' : 'false'"
+                                >
+                                    <img :src="img.thumb" :alt="img.alt" class="h-full w-full {{ $thumbnailImageClass }}" loading="lazy" draggable="false" />
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            @endif
+        </div>
+    </template>
 </section>

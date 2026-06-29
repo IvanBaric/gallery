@@ -31,12 +31,25 @@ final class AttachGalleryToModelAction
         }
 
         try {
-            $attached = DB::transaction(static fn (): Gallery => $model->attachStandaloneGallery(
-                $gallery,
-                $collection,
-                $allowReplace,
-                $emptyOnly,
-            ));
+            $attached = DB::transaction(static function () use ($model, $gallery, $collection, $allowReplace, $emptyOnly): Gallery {
+                $model->newQuery()
+                    ->whereKey($model->getKey())
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                /** @var Gallery $lockedGallery */
+                $lockedGallery = Gallery::query()
+                    ->whereKey($gallery->getKey())
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                return $model->attachStandaloneGallery(
+                    $lockedGallery,
+                    $collection,
+                    $allowReplace,
+                    $emptyOnly,
+                );
+            });
         } catch (InvalidArgumentException $exception) {
             return ActionResult::error(
                 message: self::attachmentErrorMessage($exception->getMessage()),

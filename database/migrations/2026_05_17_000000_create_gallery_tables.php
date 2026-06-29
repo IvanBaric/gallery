@@ -26,9 +26,10 @@ return new class extends Migration
                 $table->string('team_id')->nullable()->index();
                 $table->uuid('tenant_uuid')->nullable()->index();
                 $table->json('custom_properties')->nullable();
+                $table->unsignedInteger('lock_version')->default(0);
                 $table->timestamps();
 
-                $table->index(['galleryable_type', 'galleryable_id', 'collection_name'], 'galleries_owner_collection_index');
+                $table->unique(['galleryable_type', 'galleryable_id', 'collection_name'], 'galleries_owner_collection_unique');
                 $table->index(['tenant_type', 'team_id', 'collection_name'], 'galleries_tenant_collection_index');
             });
         }
@@ -36,6 +37,7 @@ return new class extends Migration
         if (! Schema::hasTable($settingsTable)) {
             Schema::create($settingsTable, function (Blueprint $table): void {
                 $table->id();
+                $table->uuid('uuid')->unique();
                 $table->string('key')->unique();
                 $table->json('value')->nullable();
                 $table->timestamps();

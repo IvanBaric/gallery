@@ -25,6 +25,8 @@ final class GalleryMediaForm extends Form
 
     public bool $is_decorative = false;
 
+    public ?int $lock_version = null;
+
     /**
      * @return array<string, mixed>
      */
@@ -39,6 +41,7 @@ final class GalleryMediaForm extends Form
             'source_url' => ['nullable', 'url', 'max:2048'],
             'license' => ['nullable', 'string', 'max:180'],
             'is_decorative' => ['boolean'],
+            'lock_version' => ['nullable', 'integer', 'min:0'],
         ];
     }
 
@@ -85,6 +88,7 @@ final class GalleryMediaForm extends Form
             'source_url' => $this->source_url,
             'license' => $this->license,
             'is_decorative' => $this->is_decorative,
+            'lock_version' => $this->lock_version,
         ];
     }
 }

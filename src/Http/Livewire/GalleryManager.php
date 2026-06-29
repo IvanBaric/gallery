@@ -20,7 +20,9 @@ use IvanBaric\Gallery\Livewire\Forms\GalleryMediaForm;
 use IvanBaric\Gallery\Models\Gallery;
 use IvanBaric\Gallery\Support\GalleryPermissions;
 use IvanBaric\Gallery\Support\GallerySettings;
+use IvanBaric\Gallery\Support\GalleryUploadValidation;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
@@ -30,34 +32,46 @@ class GalleryManager extends Component
 {
     use WithFileUploads;
 
+    #[Locked]
     public string $modelClass;
 
+    #[Locked]
     public int|string $modelKey;
 
+    #[Locked]
     public string $collection = 'images';
 
+    #[Locked]
     public string $context = 'default';
 
+    #[Locked]
     public ?string $title = null;
 
+    #[Locked]
     public ?string $description = null;
 
+    #[Locked]
     public bool $migrateLegacy = true;
 
     /** @var array<int, TemporaryUploadedFile> */
     public array $uploads = [];
 
+    public ?TemporaryUploadedFile $queuedUpload = null;
+
     public bool $selectMode = false;
 
-    /** @var array<int, int|string> */
-    public array $selectedMediaIds = [];
+    /** @var array<int, string> */
+    public array $selectedMediaUuids = [];
 
-    public ?int $pendingDeleteMediaId = null;
+    #[Locked]
+    public ?string $pendingDeleteMediaUuid = null;
 
-    public ?int $editingMediaId = null;
+    #[Locked]
+    public ?string $editingMediaUuid = null;
 
     public GalleryMediaForm $mediaForm;
 
+    #[Locked]
     public string $modalKey;
 
     public function mount(
@@ -117,6 +131,56 @@ class GalleryManager extends Component
         );
     }
 
+    public function saveQueuedUpload(): void
+    {
+        $this->authorizeGalleryAction('upload');
+
+        if (! $this->queuedUpload instanceof TemporaryUploadedFile) {
+            return;
+        }
+
+        $this->validateQueuedUpload();
+
+        $gallery = $this->currentGallery(create: true);
+        $result = app(UploadGalleryMediaAction::class)->handle($gallery, [$this->queuedUpload], $this->collection);
+
+        if (! $this->handleActionFailure($result, 'queuedUpload')) {
+            return;
+        }
+
+        $this->reset('queuedUpload');
+        unset($this->subject, $this->gallery, $this->mediaItems);
+    }
+
+    public function finishQueuedUploads(int $uploadedCount, int $skippedCount = 0): void
+    {
+        if ($uploadedCount <= 0 && $skippedCount <= 0) {
+            return;
+        }
+
+        if ($uploadedCount > 0) {
+            $text = trans_choice('{1} Dodana je :count fotografija.|[2,*] Dodano je :count fotografija.', $uploadedCount, ['count' => $uploadedCount]);
+
+            if ($skippedCount > 0) {
+                $text .= ' '.trans_choice('{1} Jedna fotografija nije dodana jer je dosegnut limit.|[2,*] :count fotografija nije dodano jer je dosegnut limit.', $skippedCount, ['count' => $skippedCount]);
+            }
+
+            Flux::toast(
+                heading: __('Fotografije spremljene'),
+                text: $text,
+                variant: $skippedCount > 0 ? 'warning' : 'success',
+            );
+
+            return;
+        }
+
+        Flux::toast(
+            heading: __('Kapacitet popunjen'),
+            text: trans_choice('{1} Nije dodana odabrana fotografija jer je dosegnut limit.|[2,*] Nije dodano :count odabranih fotografija jer je dosegnut limit.', $skippedCount, ['count' => $skippedCount]),
+            variant: 'warning',
+        );
+    }
+
     public function toggleSelectionMode(): void
     {
         if ($this->mediaItems->isEmpty()) {
@@ -126,29 +190,29 @@ class GalleryManager extends Component
         $this->selectMode = ! $this->selectMode;
 
         if (! $this->selectMode) {
-            $this->selectedMediaIds = [];
+            $this->selectedMediaUuids = [];
         }
     }
 
     public function selectAllMedia(): void
     {
         $this->selectMode = true;
-        $this->selectedMediaIds = $this->mediaItems
-            ->pluck('id')
-            ->map(fn ($id): int => (int) $id)
+        $this->selectedMediaUuids = $this->mediaItems
+            ->pluck('uuid')
+            ->map(fn ($uuid): string => (string) $uuid)
             ->all();
     }
 
     public function clearSelectedMedia(): void
     {
-        $this->selectedMediaIds = [];
+        $this->selectedMediaUuids = [];
     }
 
-    public function updatedSelectedMediaIds(): void
+    public function updatedSelectedMediaUuids(): void
     {
-        $this->selectedMediaIds = collect($this->selectedMediaIds)
-            ->map(fn ($id): int => (int) $id)
-            ->intersect($this->mediaItems->pluck('id')->map(fn ($id): int => (int) $id))
+        $this->selectedMediaUuids = collect($this->selectedMediaUuids)
+            ->map(fn ($uuid): string => trim((string) $uuid))
+            ->intersect($this->mediaItems->pluck('uuid')->map(fn ($uuid): string => (string) $uuid))
             ->values()
             ->all();
     }
@@ -183,13 +247,13 @@ class GalleryManager extends Component
         $count = $media->count();
         $result = app(DeleteGalleryMediaAction::class)->handle($gallery, $media->all());
 
-        if (! $this->handleActionFailure($result, 'selectedMediaIds')) {
+        if (! $this->handleActionFailure($result, 'selectedMediaUuids')) {
             return;
         }
 
         $this->deleteAttachedGalleryIfEmpty($gallery);
 
-        $this->selectedMediaIds = [];
+        $this->selectedMediaUuids = [];
         $this->selectMode = false;
         $this->dispatch('modal-close', name: $this->bulkDeleteModalName());
         unset($this->gallery, $this->mediaItems);
@@ -228,11 +292,12 @@ class GalleryManager extends Component
         );
     }
 
-    public function reorderMedia(int $mediaId, int $position): void
+    public function reorderMedia(string $mediaUuid, int $position): void
     {
         $gallery = $this->currentGallery()->fresh();
+        $media = $this->mediaInGallery($mediaUuid);
 
-        $result = app(ReorderGalleryMediaAction::class)->handle($gallery, $mediaId, $position, $this->collection);
+        $result = app(ReorderGalleryMediaAction::class)->handle($gallery, (int) $media->id, $position, $this->collection);
 
         if (! $this->handleActionFailure($result, 'media')) {
             return;
@@ -242,10 +307,11 @@ class GalleryManager extends Component
         unset($this->subject, $this->gallery, $this->mediaItems);
     }
 
-    public function setFeaturedMedia(int $mediaId): void
+    public function setFeaturedMedia(string $mediaUuid): void
     {
         $gallery = $this->currentGallery();
-        $result = app(SetFeaturedGalleryMediaAction::class)->handle($gallery, $mediaId);
+        $media = $this->mediaInGallery($mediaUuid);
+        $result = app(SetFeaturedGalleryMediaAction::class)->handle($gallery, (int) $media->id);
 
         if (! $this->handleActionFailure($result, 'media')) {
             return;
@@ -260,14 +326,16 @@ class GalleryManager extends Component
         );
     }
 
-    public function editMedia(int $mediaId): void
+    public function editMedia(string $mediaUuid): void
     {
         $this->authorizeGalleryAction('seo');
 
-        $media = $this->mediaInGallery($mediaId);
+        $media = $this->mediaInGallery($mediaUuid);
 
-        $this->editingMediaId = $media->id;
+        $this->editingMediaUuid = (string) $media->uuid;
         $this->mediaForm->fillFromMedia($media);
+        $gallery = $this->currentGallery();
+        $this->mediaForm->lock_version = method_exists($gallery, 'getLockVersion') ? $gallery->getLockVersion() : (int) ($gallery->lock_version ?? 0);
 
         $this->dispatch('modal-show', name: $this->metaModalName());
     }
@@ -276,13 +344,13 @@ class GalleryManager extends Component
     {
         $this->authorizeGalleryAction('seo');
 
-        if (! $this->editingMediaId) {
+        if (! $this->editingMediaUuid) {
             return;
         }
 
         $this->mediaForm->validate();
 
-        $media = $this->mediaInGallery($this->editingMediaId);
+        $media = $this->mediaInGallery($this->editingMediaUuid);
         $result = app(UpdateGalleryMediaMetaAction::class)->handle(
             $this->currentGallery(),
             $media,
@@ -294,7 +362,7 @@ class GalleryManager extends Component
         }
 
         $this->dispatch('modal-close', name: $this->metaModalName());
-        $this->reset('editingMediaId');
+        $this->reset('editingMediaUuid');
         unset($this->gallery, $this->mediaItems);
 
         Flux::toast(
@@ -304,18 +372,18 @@ class GalleryManager extends Component
         );
     }
 
-    public function confirmDeleteMedia(int $mediaId): void
+    public function confirmDeleteMedia(string $mediaUuid): void
     {
         $this->authorizeGalleryAction('delete');
 
-        $media = $this->mediaInGallery($mediaId);
-        $this->pendingDeleteMediaId = $media->id;
+        $media = $this->mediaInGallery($mediaUuid);
+        $this->pendingDeleteMediaUuid = (string) $media->uuid;
         $this->dispatch('modal-show', name: $this->deleteModalName());
     }
 
     public function cancelDeleteMedia(): void
     {
-        $this->pendingDeleteMediaId = null;
+        $this->pendingDeleteMediaUuid = null;
         $this->dispatch('modal-close', name: $this->deleteModalName());
     }
 
@@ -323,21 +391,21 @@ class GalleryManager extends Component
     {
         $this->authorizeGalleryAction('delete');
 
-        if (! $this->pendingDeleteMediaId) {
+        if (! $this->pendingDeleteMediaUuid) {
             return;
         }
 
-        $media = $this->mediaInGallery($this->pendingDeleteMediaId);
+        $media = $this->mediaInGallery($this->pendingDeleteMediaUuid);
         $gallery = $this->currentGallery();
         $result = app(DeleteGalleryMediaAction::class)->handle($gallery, [$media]);
 
-        if (! $this->handleActionFailure($result, 'pendingDeleteMediaId')) {
+        if (! $this->handleActionFailure($result, 'pendingDeleteMediaUuid')) {
             return;
         }
 
         $this->deleteAttachedGalleryIfEmpty($gallery);
 
-        $this->pendingDeleteMediaId = null;
+        $this->pendingDeleteMediaUuid = null;
         $this->dispatch('modal-close', name: $this->deleteModalName());
         unset($this->gallery, $this->mediaItems);
 
@@ -403,11 +471,11 @@ class GalleryManager extends Component
     #[Computed]
     public function pendingDeleteMedia(): ?SpatieMedia
     {
-        if (! $this->pendingDeleteMediaId) {
+        if (! $this->pendingDeleteMediaUuid) {
             return null;
         }
 
-        return $this->mediaItems->firstWhere('id', $this->pendingDeleteMediaId);
+        return $this->mediaItems->firstWhere('uuid', $this->pendingDeleteMediaUuid);
     }
 
     #[Computed]
@@ -473,6 +541,14 @@ class GalleryManager extends Component
         return GalleryPermissions::allows(auth()->user(), $action);
     }
 
+    public function friendlyUploadError(string $message): string
+    {
+        return GalleryUploadValidation::friendlyMessage(
+            $message,
+            GallerySettings::validationForContext($this->context),
+        );
+    }
+
     private function validateUploadPayload(): void
     {
         if ($this->remainingSlots <= 0) {
@@ -482,34 +558,29 @@ class GalleryManager extends Component
         }
 
         $validation = GallerySettings::validationForContext($this->context);
-        $imageRules = ['image', 'max:'.$validation['max_file_size_kb']];
 
-        if ($validation['mimes'] !== []) {
-            $imageRules[] = 'mimes:'.implode(',', $validation['mimes']);
+        $this->validate(
+            GalleryUploadValidation::rules($validation, $this->remainingSlots),
+            GalleryUploadValidation::messages($validation, $this->remainingSlots),
+            GalleryUploadValidation::attributes(),
+        );
+    }
+
+    private function validateQueuedUpload(): void
+    {
+        if ($this->remainingSlots <= 0) {
+            throw ValidationException::withMessages([
+                'queuedUpload' => __('Dosegnut je maksimalan broj fotografija za ovu galeriju.'),
+            ]);
         }
 
-        if ($validation['min_width']) {
-            $imageRules[] = 'dimensions:min_width='.$validation['min_width'];
-        }
+        $validation = GallerySettings::validationForContext($this->context);
 
-        if ($validation['min_height']) {
-            $imageRules[] = 'dimensions:min_height='.$validation['min_height'];
-        }
-
-        $this->validate([
-            'uploads' => ['array', 'max:'.$this->remainingSlots],
-            'uploads.*' => $imageRules,
-        ], [
-            'uploads.array' => __('Odaberite jednu ili više fotografija.'),
-            'uploads.max' => __('Možete dodati najviše :max fotografija.', ['max' => $this->remainingSlots]),
-            'uploads.*.image' => __('Svaka datoteka mora biti slika.'),
-            'uploads.*.max' => __('Svaka fotografija mora biti manja od :max MB.', ['max' => max(1, (int) ceil($validation['max_file_size_kb'] / 1024))]),
-            'uploads.*.mimes' => __('Dopušteni formati su: :values.', ['values' => strtoupper(implode(', ', $validation['mimes']))]),
-            'uploads.*.dimensions' => __('Fotografija ne zadovoljava minimalne dimenzije.'),
-        ], [
-            'uploads' => __('fotografije'),
-            'uploads.*' => __('fotografija'),
-        ]);
+        $this->validate(
+            GalleryUploadValidation::singleRules($validation),
+            GalleryUploadValidation::messages($validation, $this->remainingSlots),
+            GalleryUploadValidation::attributes(),
+        );
     }
 
     private function currentGallery(bool $create = false): Gallery
@@ -563,9 +634,9 @@ class GalleryManager extends Component
         return false;
     }
 
-    private function mediaInGallery(int $mediaId): SpatieMedia
+    private function mediaInGallery(string $mediaUuid): SpatieMedia
     {
-        $media = $this->mediaItems->firstWhere('id', $mediaId);
+        $media = $this->mediaItems->firstWhere('uuid', $mediaUuid);
 
         abort_unless($media, 404);
 
@@ -574,16 +645,17 @@ class GalleryManager extends Component
 
     private function selectedMedia()
     {
-        $ids = collect($this->selectedMediaIds)
-            ->map(fn ($id): int => (int) $id)
+        $uuids = collect($this->selectedMediaUuids)
+            ->map(fn ($uuid): string => trim((string) $uuid))
+            ->filter()
             ->all();
 
-        if ($ids === []) {
+        if ($uuids === []) {
             return collect();
         }
 
         return $this->mediaItems
-            ->filter(fn (SpatieMedia $media): bool => in_array((int) $media->id, $ids, true))
+            ->filter(fn (SpatieMedia $media): bool => in_array((string) $media->uuid, $uuids, true))
             ->values();
     }
 

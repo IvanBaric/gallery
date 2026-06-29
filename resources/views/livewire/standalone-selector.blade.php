@@ -32,7 +32,7 @@
     @endif
 
     @if ($canChooseGallery)
-        <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <div class="space-y-3">
             <flux:select
                 wire:model.live="selectedGalleryUuid"
                 :label="$hasCurrentGallery ? __('Odaberi drugu galeriju') : $selectLabel"
@@ -40,7 +40,12 @@
                 variant="listbox"
                 searchable
                 clearable
+                class="w-full"
             >
+                <x-slot name="search">
+                    <flux:select.search class="px-4" :placeholder="__('Pretraži galerije...')" />
+                </x-slot>
+
                 @foreach ($standaloneGalleries as $gallery)
                     <flux:select.option value="{{ $gallery->uuid }}">
                         {{ $gallery->displayTitle() }}
@@ -48,19 +53,22 @@
                 @endforeach
             </flux:select>
 
-            <flux:tooltip :content="$hasCurrentGallery ? __('Zamijeni trenutnu galeriju odabranom galerijom') : __('Poveži odabranu galeriju s ovim zapisom')">
-                <flux:button
-                    type="button"
-                    variant="primary"
-                    icon="link"
-                    wire:click="attachSelectedGallery"
-                    wire:loading.attr="disabled"
-                    wire:target="attachSelectedGallery"
-                    :disabled="blank($selectedGalleryUuid)"
-                >
-                    {{ $hasCurrentGallery ? __('Poveži odabranu') : $submitLabel }}
-                </flux:button>
-            </flux:tooltip>
+            <div class="w-full">
+                <flux:tooltip :content="$hasCurrentGallery ? __('Zamijeni trenutnu galeriju odabranom galerijom') : __('Poveži odabranu galeriju s ovim zapisom')" class="block w-full">
+                    <flux:button
+                        type="button"
+                        variant="primary"
+                        icon="link"
+                        wire:click="attachSelectedGallery"
+                        wire:loading.attr="disabled"
+                        wire:target="attachSelectedGallery"
+                        :disabled="blank($selectedGalleryUuid)"
+                        class="w-full justify-center"
+                    >
+                        {{ $hasCurrentGallery ? __('Poveži odabranu') : $submitLabel }}
+                    </flux:button>
+                </flux:tooltip>
+            </div>
         </div>
     @endif
 

@@ -22,8 +22,14 @@ final class DeleteGalleryAction
         $collection = (string) $gallery->collection_name;
 
         DB::transaction(static function () use ($gallery, $collection): void {
-            $gallery->clearMediaCollection($collection);
-            $gallery->delete();
+            /** @var Gallery $lockedGallery */
+            $lockedGallery = Gallery::query()
+                ->whereKey($gallery->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $lockedGallery->clearMediaCollection($collection);
+            $lockedGallery->delete();
         });
 
         event(new GalleryDeleted($galleryId, $uuid, $collection));

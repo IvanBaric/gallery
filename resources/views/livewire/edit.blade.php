@@ -44,7 +44,11 @@
         </x-slot:actions>
     </x-admin-ui::page-header>
 
-    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+    <div @class([
+        'grid gap-3 sm:grid-cols-2',
+        'xl:grid-cols-5' => $canRegenerate,
+        'xl:grid-cols-4' => ! $canRegenerate,
+    ])>
         <section class="rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-zinc-950/5 dark:bg-zinc-950 dark:ring-white/10">
             <p class="text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">{{ __('Slike') }}</p>
             <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-950 dark:text-white">{{ $mediaCount }}</p>
@@ -61,20 +65,22 @@
             <p class="text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">{{ __('Tip') }}</p>
             <p class="mt-1 text-sm font-semibold text-zinc-950 dark:text-white">{{ $gallery->ownerTypeLabel() }}</p>
         </section>
-        <section class="rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-zinc-950/5 dark:bg-zinc-950 dark:ring-white/10">
-            <p class="text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">{{ __('Regenerirano') }}</p>
-            @if ($queuedAt)
-                <div class="mt-1">
-                    <flux:badge size="sm" color="blue" icon="arrow-path">{{ __('U obradi') }}</flux:badge>
-                </div>
-            @elseif ($lastRegeneratedAt)
-                <p class="mt-1 text-sm font-semibold text-zinc-950 dark:text-white">{{ $lastRegeneratedAt->diffForHumans() }}</p>
-            @else
-                <div class="mt-1">
-                    <x-admin-ui::empty-value />
-                </div>
-            @endif
-        </section>
+        @if ($canRegenerate)
+            <section class="rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-zinc-950/5 dark:bg-zinc-950 dark:ring-white/10">
+                <p class="text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">{{ __('Regenerirano') }}</p>
+                @if ($queuedAt)
+                    <div class="mt-1">
+                        <flux:badge size="sm" color="blue" icon="arrow-path">{{ __('U obradi') }}</flux:badge>
+                    </div>
+                @elseif ($lastRegeneratedAt)
+                    <p class="mt-1 text-sm font-semibold text-zinc-950 dark:text-white">{{ $lastRegeneratedAt->diffForHumans() }}</p>
+                @else
+                    <div class="mt-1">
+                        <x-admin-ui::empty-value />
+                    </div>
+                @endif
+            </section>
+        @endif
     </div>
 
     <x-gallery::manager
@@ -86,6 +92,7 @@
         :migrate-legacy="false"
     />
 
+    @if ($canRegenerate)
     <flux:modal name="gallery-regenerate-confirm" class="max-w-lg">
         <div class="space-y-6">
             <div>
@@ -109,6 +116,7 @@
             </div>
         </div>
     </flux:modal>
+    @endif
 
     <flux:modal name="gallery-meta-edit" class="max-w-2xl">
         <form wire:submit="saveMeta" class="space-y-6">

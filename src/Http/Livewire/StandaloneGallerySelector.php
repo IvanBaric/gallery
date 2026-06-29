@@ -172,7 +172,6 @@ class StandaloneGallerySelector extends Component
         Flux::toast(
             heading: __('Galerija uklonjena'),
             text: __('Galerija više nije povezana s ovim zapisom.'),
-            variant: 'success',
         );
     }
 

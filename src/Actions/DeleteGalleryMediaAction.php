@@ -36,14 +36,20 @@ final class DeleteGalleryMediaAction
         $featuredDeleted = in_array((int) $gallery->featured_media_id, $mediaIds, true);
 
         DB::transaction(static function () use ($gallery, $mediaItems, $featuredDeleted): void {
+            /** @var Gallery $lockedGallery */
+            $lockedGallery = Gallery::query()
+                ->whereKey($gallery->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
             foreach ($mediaItems as $item) {
                 $item->delete();
             }
 
             if ($featuredDeleted) {
-                $gallery->forceFill(['featured_media_id' => null])->save();
+                $lockedGallery->forceFill(['featured_media_id' => null])->save();
             } else {
-                $gallery->touch();
+                $lockedGallery->touch();
             }
         });
 

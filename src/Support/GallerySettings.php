@@ -31,13 +31,14 @@ final class GallerySettings
     {
         $base = (array) config('gallery.validation', []);
         $contextRules = (array) config("gallery.contexts.$context", []);
+        $policy = corexis_image_upload();
 
         return [
-            'max_files' => max(1, (int) ($contextRules['max_files'] ?? $base['max_files'] ?? 30)),
-            'max_file_size_kb' => max(1, (int) ($contextRules['max_file_size_kb'] ?? $base['max_file_size_kb'] ?? 3072)),
-            'mimes' => array_values(array_filter((array) ($contextRules['mimes'] ?? $base['mimes'] ?? ['jpg', 'jpeg', 'png', 'webp']))),
-            'min_width' => self::nullablePositiveInteger($contextRules['min_width'] ?? $base['min_width'] ?? null),
-            'min_height' => self::nullablePositiveInteger($contextRules['min_height'] ?? $base['min_height'] ?? null),
+            'max_files' => self::positiveInteger($contextRules['max_files'] ?? $base['max_files'] ?? 30, 30),
+            'max_file_size_kb' => self::positiveInteger($contextRules['max_file_size_kb'] ?? $base['max_file_size_kb'] ?? null, $policy->maxFileSizeKb()),
+            'mimes' => self::stringList($contextRules['mimes'] ?? $base['mimes'] ?? null, $policy->mimes()),
+            'min_width' => self::nullablePositiveInteger($contextRules['min_width'] ?? $base['min_width'] ?? $policy->minWidth()),
+            'min_height' => self::nullablePositiveInteger($contextRules['min_height'] ?? $base['min_height'] ?? $policy->minHeight()),
         ];
     }
 
@@ -85,6 +86,26 @@ final class GallerySettings
         $value = (int) $value;
 
         return $value > 0 ? $value : null;
+    }
+
+    private static function positiveInteger(mixed $value, int $fallback): int
+    {
+        if (! is_numeric($value)) {
+            return max(1, $fallback);
+        }
+
+        return max(1, (int) $value);
+    }
+
+    /**
+     * @param  array<int, string>  $fallback
+     * @return array<int, string>
+     */
+    private static function stringList(mixed $value, array $fallback): array
+    {
+        $items = is_array($value) ? $value : $fallback;
+
+        return array_values(array_filter($items, static fn (mixed $item): bool => is_string($item) && $item !== ''));
     }
 
     private static function settingsTableExists(): bool

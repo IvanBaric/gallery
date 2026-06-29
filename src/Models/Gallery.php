@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use IvanBaric\Corexis\Concerns\HasLockVersion;
 use IvanBaric\Gallery\Contracts\TenantResolver;
 use IvanBaric\Gallery\Exceptions\TenantNotResolvedException;
 use IvanBaric\Gallery\Support\GallerySettings;
@@ -21,7 +22,7 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media as BaseMedia;
 
 class Gallery extends Model implements HasMedia
 {
-    use InteractsWithMedia;
+    use HasLockVersion, InteractsWithMedia;
 
     protected $guarded = [];
 
@@ -29,6 +30,7 @@ class Gallery extends Model implements HasMedia
     {
         return [
             'custom_properties' => 'array',
+            'lock_version' => 'integer',
         ];
     }
 
@@ -253,6 +255,46 @@ class Gallery extends Model implements HasMedia
             $gallery->setAttribute((string) config('gallery.tenancy.uuid_column', 'tenant_uuid'), $resolver->uuid());
             $gallery->setAttribute((string) config('gallery.tenancy.type_column', 'tenant_type'), $resolver->type());
         });
+
+        static::saving(function (self $gallery): void {
+            if (filled($gallery->title)) {
+                $gallery->slug = $gallery->uniqueSlugForTitle((string) $gallery->title);
+            }
+        });
+    }
+
+    private function uniqueSlugForTitle(string $title): string
+    {
+        $baseSlug = Str::slug($title) ?: (string) Str::uuid();
+        $slug = $baseSlug;
+        $counter = 2;
+
+        while ($this->slugExists($slug)) {
+            $slug = $baseSlug.'-'.$counter;
+            $counter++;
+        }
+
+        return $slug;
+    }
+
+    private function slugExists(string $slug): bool
+    {
+        return $this->newQuery()
+            ->where('slug', $slug)
+            ->when($this->exists, fn (Builder $query): Builder => $query->whereKeyNot($this->getKey()))
+            ->where(function (Builder $query): void {
+                $teamId = (string) $this->getAttribute('team_id');
+                $tenantUuid = (string) $this->getAttribute('tenant_uuid');
+
+                if ($teamId !== '') {
+                    $query->orWhere('team_id', $teamId);
+                }
+
+                if ($tenantUuid !== '') {
+                    $query->orWhere('tenant_uuid', $tenantUuid);
+                }
+            })
+            ->exists();
     }
 
     private function customPropertyDate(string $key): ?Carbon

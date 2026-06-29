@@ -22,9 +22,9 @@
     $canBulkActions = $canDelete || $canRegenerate;
 @endphp
 
-<x-admin-ui::panel loading loading-target="uploads,saveUploads,deleteMedia,deleteSelectedMedia,regenerateSelectedMedia,reorderMedia,setFeaturedMedia,saveMediaMeta,regenerateGallery" loading-text="{{ __('Spremam promjene u galeriji...') }}">
+<x-admin-ui::panel loading loading-target="uploads,queuedUpload,saveUploads,saveQueuedUpload,finishQueuedUploads,deleteMedia,deleteSelectedMedia,regenerateSelectedMedia,reorderMedia,setFeaturedMedia,saveMediaMeta,regenerateGallery" loading-text="{{ __('Spremam promjene u galeriji...') }}">
     <x-admin-ui::panel-header :title="$panelTitle" :description="$panelDescription">
-        @if (! $mediaItems->isEmpty() && ($canBulkActions || $canRegenerate))
+        @if (! $mediaItems->isEmpty() && $canBulkActions)
             <x-slot:actions>
                 <div class="flex items-center gap-2">
                     @if ($canBulkActions)
@@ -42,9 +42,99 @@
         @endif
     </x-admin-ui::panel-header>
 
-    <div x-data class="px-6 pb-6 pt-5 sm:px-7 sm:pb-7">
+    <div
+        x-data="{
+            isUploading: false,
+            currentUpload: 0,
+            uploadTotal: 0,
+            uploadedCount: 0,
+            skippedCount: 0,
+            progress: 0,
+            remainingSlots: @js($remainingSlots),
+            uploadSelected(event) {
+                const selectedFiles = Array.from(event.target.files || []);
+                event.target.value = '';
+
+                if (selectedFiles.length === 0 || this.isUploading) {
+                    return;
+                }
+
+                const allowedCount = Math.max(0, Number(this.remainingSlots || 0));
+                const files = selectedFiles.slice(0, allowedCount);
+
+                this.skippedCount = Math.max(0, selectedFiles.length - files.length);
+
+                if (files.length === 0) {
+                    $wire.finishQueuedUploads(0, this.skippedCount);
+                    this.skippedCount = 0;
+
+                    return;
+                }
+
+                this.isUploading = true;
+                this.currentUpload = 0;
+                this.uploadTotal = files.length;
+                this.uploadedCount = 0;
+                this.progress = 0;
+                this.uploadNext(files);
+            },
+            uploadNext(files) {
+                const file = files.shift();
+
+                if (! file) {
+                    const uploaded = this.uploadedCount;
+                    const skipped = this.skippedCount;
+
+                    this.isUploading = false;
+                    this.currentUpload = 0;
+                    this.uploadTotal = 0;
+                    this.uploadedCount = 0;
+                    this.skippedCount = 0;
+                    this.progress = 0;
+
+                    $wire.finishQueuedUploads(uploaded, skipped);
+
+                    return;
+                }
+
+                this.currentUpload += 1;
+                this.progress = 0;
+
+                $wire.upload(
+                    'queuedUpload',
+                    file,
+                    () => {
+                        $wire.saveQueuedUpload()
+                            .then(() => {
+                                this.uploadedCount += 1;
+                                this.uploadNext(files);
+                            })
+                            .catch(() => {
+                                this.isUploading = false;
+                            });
+                    },
+                    () => {
+                        this.isUploading = false;
+                    },
+                    (event) => {
+                        this.progress = event.detail?.progress || 0;
+                    },
+                );
+            },
+        }"
+        class="px-6 pb-6 pt-5 sm:px-7 sm:pb-7"
+    >
         @if ($canUpload)
-            <input id="gallery-upload-{{ $modalKey }}" x-ref="galleryUpload" wire:model="uploads" type="file" multiple accept="{{ $this->acceptedMimes }}" class="sr-only" @disabled($isFull) />
+            <input
+                id="gallery-upload-{{ $modalKey }}"
+                x-ref="galleryUpload"
+                x-on:change="uploadSelected($event)"
+                type="file"
+                multiple
+                accept="{{ $this->acceptedMimes }}"
+                class="sr-only"
+                x-bind:disabled="isUploading || @js($isFull)"
+            />
         @endif
 
         <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12px] leading-5">
@@ -61,17 +151,26 @@
                     <span class="font-semibold tabular-nums text-zinc-950 dark:text-white">{{ $seoCompleteCount }}</span>
                     <span class="tabular-nums text-zinc-400 dark:text-zinc-500">/ {{ $mediaCount }}</span>
                 @endif
-                @if ($queuedAt)
-                    <flux:badge size="sm" color="blue" icon="arrow-path" class="ml-1">{{ __('U obradi') }}</flux:badge>
-                @elseif ($lastRegeneratedAt)
-                    <span class="text-zinc-300 dark:text-zinc-700" aria-hidden="true">/</span>
-                    <span class="text-zinc-500 dark:text-zinc-400">{{ __('Regenerirano :time', ['time' => $lastRegeneratedAt->diffForHumans()]) }}</span>
+                @if ($canRegenerate)
+                    @if ($queuedAt)
+                        <flux:badge size="sm" color="blue" icon="arrow-path" class="ml-1">{{ __('U obradi') }}</flux:badge>
+                    @elseif ($lastRegeneratedAt)
+                        <span class="text-zinc-300 dark:text-zinc-700" aria-hidden="true">/</span>
+                        <span class="text-zinc-500 dark:text-zinc-400">{{ __('Regenerirano :time', ['time' => $lastRegeneratedAt->diffForHumans()]) }}</span>
+                    @endif
                 @endif
             </div>
         </div>
 
-        @error('uploads') <p class="mt-3 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
-        @error('uploads.*') <p class="mt-3 text-sm text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+        @error('uploads') <x-gallery::upload-error :message="$message" :context="$this->context" /> @enderror
+        @error('uploads.*') <x-gallery::upload-error :message="$message" :context="$this->context" /> @enderror
+        @error('queuedUpload') <x-gallery::upload-error :message="$message" :context="$this->context" /> @enderror
+
+        <div x-cloak x-show="isUploading" x-transition.opacity.duration.150ms class="mt-4 inline-flex items-center gap-2 rounded-full bg-[color:var(--niva-primary-50)] px-3 py-1.5 text-sm font-medium text-[color:var(--niva-primary-800)] ring-1 ring-[color:var(--niva-primary-100)] dark:bg-[color:var(--niva-primary-950)] dark:text-[color:var(--niva-primary-200)] dark:ring-[color:var(--niva-primary-900)]">
+            <span class="admin-loading-spinner" aria-hidden="true"></span>
+            <span>{{ __('Učitavanje') }}</span>
+            <span class="tabular-nums text-[color:var(--niva-primary-700)] dark:text-[color:var(--niva-primary-200)]" x-text="uploadTotal > 1 ? `${currentUpload}/${uploadTotal}` : `${progress}%`"></span>
+        </div>
 
         @if ($selectMode && $canBulkActions)
             <div class="mt-5 flex flex-col gap-3 rounded-xl bg-zinc-50/80 p-3 ring-1 ring-zinc-950/5 dark:bg-zinc-900/80 dark:ring-white/10 sm:flex-row sm:items-center sm:justify-between">
@@ -98,7 +197,7 @@
 
         <div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             @if ($canUpload)
-            <button type="button" x-on:click.prevent="$refs.galleryUpload.click()" @disabled($isFull)
+            <button type="button" x-on:click.prevent="if (! isUploading) $refs.galleryUpload.click()" x-bind:disabled="isUploading || @js($isFull)"
                 class="group/add relative flex aspect-[4/3] w-full overflow-hidden rounded-xl border border-dashed border-zinc-300 bg-zinc-50/70 p-3 text-center ring-1 ring-zinc-950/0 transition duration-200 ease-out hover:-translate-y-0.5 hover:border-zinc-400 hover:bg-white hover:shadow-sm hover:shadow-zinc-950/5 hover:ring-zinc-950/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950/10 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none dark:border-white/10 dark:bg-zinc-900/60 dark:hover:border-white/20 dark:hover:bg-zinc-900 dark:hover:ring-white/10 dark:focus-visible:ring-white/10">
                 <span class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(24,24,27,0.08),transparent_55%)] opacity-0 transition duration-200 ease-out group-hover/add:opacity-100 dark:bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.12),transparent_55%)]"></span>
 
@@ -130,17 +229,17 @@
                 @foreach ($mediaItems as $idx => $img)
                     @php
                         $isFeatured = (int) $featuredId === (int) $img->id;
-                        $thumb = $img->getAvailableUrl(['admin_thumb', 'thumbnail', 'thumb']);
+                        $thumb = $img->getAvailableUrl(['thumb', 'admin_thumb', 'thumbnail']);
                         $alt = method_exists($img, 'altText') ? $img->altText($gallery?->displayTitle() ?? $panelTitle) : $img->name;
                         $hasSeo = $gallery?->mediaHasSeo($img) ?? false;
                     @endphp
 
-                    <div wire:key="gallery-media-{{ $img->id }}" wire:sort:item="{{ $img->id }}" class="group/img relative overflow-hidden rounded-xl bg-zinc-100 ring-1 ring-zinc-950/5 transition duration-150 ease-out hover:ring-zinc-950/15 dark:bg-zinc-900 dark:ring-white/10 dark:hover:ring-white/20">
+                    <div wire:key="gallery-media-{{ $img->uuid }}" wire:sort:item="{{ $img->uuid }}" class="group/img relative overflow-hidden rounded-xl bg-zinc-100 ring-1 ring-zinc-950/5 transition duration-150 ease-out hover:ring-zinc-950/15 dark:bg-zinc-900 dark:ring-white/10 dark:hover:ring-white/20">
                         <img src="{{ $thumb }}" alt="{{ $alt }}" class="pointer-events-none aspect-[4/3] w-full object-cover select-none" loading="lazy" draggable="false" />
 
                         @if ($selectMode)
                             <label wire:sort:ignore class="absolute left-2 top-2 z-10 inline-flex size-6 items-center justify-center rounded-md bg-white/95 shadow-sm ring-1 ring-zinc-950/10 dark:bg-zinc-950/90 dark:ring-white/10">
-                                <input type="checkbox" wire:model.live="selectedMediaIds" value="{{ $img->id }}" class="size-3.5 rounded border-zinc-300 text-zinc-950 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:focus:ring-zinc-400" aria-label="{{ __('Odaberi fotografiju') }}" />
+                                <input type="checkbox" wire:model.live="selectedMediaUuids" value="{{ $img->uuid }}" class="size-3.5 rounded border-zinc-300 text-zinc-950 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:focus:ring-zinc-400" aria-label="{{ __('Odaberi fotografiju') }}" />
                             </label>
                         @endif
 
@@ -174,17 +273,17 @@
                         <div wire:sort:ignore class="absolute inset-x-0 bottom-0 flex items-center justify-end gap-1 bg-gradient-to-t from-black/65 via-black/30 to-transparent p-1.5 opacity-0 transition duration-150 ease-out group-hover/img:opacity-100 group-focus-within/img:opacity-100">
                             @if ($canUpdate && ! $isFeatured)
                                 <flux:tooltip :content="__('Postavi za istaknutu sliku')">
-                                    <flux:button size="xs" variant="ghost" icon="star" wire:click="setFeaturedMedia({{ $img->id }})" aria-label="{{ __('Postavi za istaknutu sliku') }}" class="!text-white hover:!bg-white/15" />
+                                    <flux:button size="xs" variant="ghost" icon="star" wire:click="setFeaturedMedia('{{ $img->uuid }}')" aria-label="{{ __('Postavi za istaknutu sliku') }}" class="!text-white hover:!bg-white/15" />
                                 </flux:tooltip>
                             @endif
                             @if ($canSeo)
                             <flux:tooltip :content="__('Uredi SEO podatke slike')">
-                                <flux:button size="xs" variant="ghost" icon="pencil-square" wire:click="editMedia({{ $img->id }})" aria-label="{{ __('Uredi SEO podatke slike') }}" class="!text-white hover:!bg-white/15" />
+                                <flux:button size="xs" variant="ghost" icon="pencil-square" wire:click="editMedia('{{ $img->uuid }}')" aria-label="{{ __('Uredi SEO podatke slike') }}" class="!text-white hover:!bg-white/15" />
                             </flux:tooltip>
                             @endif
                             @if ($canDelete)
                             <flux:tooltip :content="__('Obriši fotografiju')">
-                                <flux:button size="xs" variant="ghost" icon="trash" wire:click="confirmDeleteMedia({{ $img->id }})" aria-label="{{ __('Obriši fotografiju') }}" class="!text-white hover:!bg-white/15" />
+                                <flux:button size="xs" variant="ghost" icon="trash" wire:click="confirmDeleteMedia('{{ $img->uuid }}')" aria-label="{{ __('Obriši fotografiju') }}" class="!text-white hover:!bg-white/15" />
                             </flux:tooltip>
                             @endif
                         </div>
@@ -299,7 +398,7 @@
             @if ($this->pendingDeleteMedia)
                 <div class="flex items-center gap-4 rounded-xl bg-zinc-50/70 p-3 ring-1 ring-zinc-950/5 dark:bg-zinc-900/80 dark:ring-white/10">
                     <div class="relative size-20 shrink-0 overflow-hidden rounded-lg bg-zinc-100 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
-                        <img src="{{ $this->pendingDeleteMedia->getAvailableUrl(['admin_thumb', 'thumbnail', 'thumb']) }}" alt="" class="h-full w-full object-cover" />
+                        <img src="{{ $this->pendingDeleteMedia->getAvailableUrl(['thumb', 'admin_thumb', 'thumbnail']) }}" alt="" class="h-full w-full object-cover" />
                     </div>
                     <div class="min-w-0 flex-1">
                         <p class="truncate text-[14px] font-semibold leading-5 text-zinc-950 dark:text-white">{{ $this->pendingDeleteMedia->name }}</p>

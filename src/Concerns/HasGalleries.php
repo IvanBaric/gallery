@@ -7,6 +7,7 @@ namespace IvanBaric\Gallery\Concerns;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
 use IvanBaric\Gallery\Models\Gallery;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -16,6 +17,16 @@ trait HasGalleries
     public static function bootHasGalleries(): void
     {
         static::deleting(function ($model): void {
+            if (method_exists($model, 'isForceDeleting') && ! $model->isForceDeleting()) {
+                return;
+            }
+
+            $galleryModel = config('gallery.models.gallery', Gallery::class);
+
+            if (! Schema::hasTable((new $galleryModel)->getTable())) {
+                return;
+            }
+
             foreach ($model->galleries as $gallery) {
                 $gallery->clearMediaCollection((string) $gallery->collection_name);
                 $gallery->delete();
@@ -182,8 +193,16 @@ trait HasGalleries
     protected function defaultGalleryTitle(): string
     {
         foreach (['title', 'name', 'display_name', 'email'] as $attribute) {
-            if (filled($this->getAttribute($attribute))) {
-                return (string) $this->getAttribute($attribute);
+            $value = $this->getAttribute($attribute);
+
+            if (is_array($value)) {
+                $locale = app()->getLocale();
+                $fallback = config('app.fallback_locale', 'en');
+                $value = $value[$locale] ?? $value[$fallback] ?? reset($value);
+            }
+
+            if (filled($value)) {
+                return (string) $value;
             }
         }
 

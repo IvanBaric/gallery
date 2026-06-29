@@ -6,11 +6,14 @@
         ['label' => __('Prazne'), 'value' => number_format($stats['empty'], 0, ',', ' '), 'icon' => 'archive-box', 'accent' => 'bg-sky-500'],
         ['label' => __('S istaknutom slikom'), 'value' => number_format($stats['with_featured'], 0, ',', ' '), 'icon' => 'star', 'accent' => 'bg-amber-400'],
     ];
-    $regenerationSummary = $this->regenerationSummary;
     $canCreate = $this->allowsGalleryAction('create');
     $canRegenerate = $this->allowsGalleryAction('regenerate');
     $canSettings = $this->allowsGalleryAction('settings');
     $canUpload = $this->allowsGalleryAction('upload');
+    $regenerationSummary = $canRegenerate ? $this->regenerationSummary : null;
+    $galleryGridColumns = $canRegenerate
+        ? 'grid-cols-[minmax(0,1fr)_7rem_9rem_9rem_10rem]'
+        : 'grid-cols-[minmax(0,1fr)_7rem_9rem_9rem]';
 @endphp
 
 <x-admin-ui::page>
@@ -66,7 +69,8 @@
                 </x-slot:icon>
             </x-admin-ui::empty-state>
         @else
-            <div class="admin-list-header grid-cols-[minmax(0,1fr)_7rem_9rem_9rem_10rem]">
+            <div id="gallery-list">
+            <div class="admin-list-header {{ $galleryGridColumns }}">
                 <div>{{ mb_strtoupper(__('Galerija')) }}</div>
                 <div class="flex justify-center">
                     <button type="button" wire:click="sortBy('images_count')" class="inline-flex items-center justify-center gap-1 transition duration-150 ease-out hover:text-zinc-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 dark:hover:text-zinc-200">
@@ -92,18 +96,20 @@
                         @endif
                     </button>
                 </div>
-                <div>{{ mb_strtoupper(__('Regenerirano')) }}</div>
+                @if ($canRegenerate)
+                    <div>{{ mb_strtoupper(__('Regenerirano')) }}</div>
+                @endif
             </div>
 
             @foreach ($this->galleries as $gallery)
                 @php
                     $featured = $gallery->featuredOrFirstMedia();
                     $count = $gallery->getMedia($gallery->collection_name)->count();
-                    $thumb = $featured?->getAvailableUrl(['admin_thumb', 'thumbnail', 'thumb']);
-                    $lastRegeneratedAt = $gallery->lastRegeneratedAt();
-                    $queuedAt = $gallery->regenerationQueuedAt();
+                    $thumb = $featured?->getAvailableUrl(['thumb', 'admin_thumb', 'thumbnail']);
+                    $lastRegeneratedAt = $canRegenerate ? $gallery->lastRegeneratedAt() : null;
+                    $queuedAt = $canRegenerate ? $gallery->regenerationQueuedAt() : null;
                 @endphp
-                <article wire:key="gallery-{{ $gallery->uuid }}" class="admin-list-row grid-cols-[minmax(0,1fr)_7rem_9rem_9rem_10rem] p-4 sm:p-6">
+                <article wire:key="gallery-{{ $gallery->uuid }}" class="admin-list-row admin-gallery-list-row {{ $galleryGridColumns }} p-4 sm:p-6">
                     <div class="flex min-w-0 items-center gap-4">
                         <div class="relative h-20 w-28 shrink-0 overflow-hidden rounded-xl bg-zinc-100 ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
                             @if ($thumb)
@@ -126,7 +132,7 @@
                             <a
                                 href="{{ route('admin.galleries.edit', ['uuid' => $gallery->uuid]) }}"
                                 wire:navigate
-                                class="truncate text-left text-sm font-semibold text-zinc-950 underline-offset-4 hover:underline dark:text-white"
+                                class="truncate text-left text-sm font-semibold text-zinc-950 transition hover:text-accent dark:text-white dark:hover:text-accent-content"
                             >
                                 {{ $gallery->displayTitle() }}
                             </a>
@@ -140,7 +146,7 @@
                                 <div class="mt-2 flex flex-wrap items-center gap-2">
                                     <flux:badge size="sm" icon="photo">{{ __('Prazna galerija') }}</flux:badge>
                                     @if ($canUpload)
-                                        <a href="{{ route('admin.galleries.edit', ['uuid' => $gallery->uuid]) }}" wire:navigate class="text-[12px] font-semibold text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-200">{{ __('Dodaj slike') }}</a>
+                                        <a href="{{ route('admin.galleries.edit', ['uuid' => $gallery->uuid]) }}" wire:navigate class="text-[12px] font-semibold text-zinc-700 transition hover:text-zinc-950 dark:text-zinc-200 dark:hover:text-white">{{ __('Dodaj slike') }}</a>
                                     @endif
                                 </div>
                             @elseif (! $gallery->featured_media_id)
@@ -166,25 +172,30 @@
                         <span class="text-[13px] font-medium text-zinc-600 dark:text-zinc-300">{{ $gallery->updated_at?->diffForHumans() }}</span>
                     </div>
 
-                    <div class="flex items-center justify-between gap-3 lg:block">
-                        <span class="text-sm font-medium text-zinc-400 lg:hidden">{{ __('Regenerirano') }}</span>
-                        @if ($queuedAt)
-                            <flux:badge size="sm" color="blue" icon="arrow-path">{{ __('U obradi') }}</flux:badge>
-                        @elseif ($lastRegeneratedAt)
-                            <span class="text-[13px] font-medium text-zinc-600 dark:text-zinc-300">{{ $lastRegeneratedAt->diffForHumans() }}</span>
-                        @else
-                            <x-admin-ui::empty-value />
-                        @endif
-                    </div>
+                    @if ($canRegenerate)
+                        <div class="flex items-center justify-between gap-3 lg:block">
+                            <span class="text-sm font-medium text-zinc-400 lg:hidden">{{ __('Regenerirano') }}</span>
+                            @if ($queuedAt)
+                                <flux:badge size="sm" color="blue" icon="arrow-path">{{ __('U obradi') }}</flux:badge>
+                            @elseif ($lastRegeneratedAt)
+                                <span class="text-[13px] font-medium text-zinc-600 dark:text-zinc-300">{{ $lastRegeneratedAt->diffForHumans() }}</span>
+                            @else
+                                <x-admin-ui::empty-value />
+                            @endif
+                        </div>
+                    @endif
 
                 </article>
             @endforeach
+            </div>
+        @endif
+
+        @if ($this->galleries->hasPages())
+            <div class="border-t border-zinc-200 px-5 py-4 dark:border-zinc-800">
+                <flux:pagination :paginator="$this->galleries" scroll-to="#gallery-list" />
+            </div>
         @endif
     </x-admin-ui::panel>
-
-    @if ($this->galleries->hasPages())
-        <flux:pagination :paginator="$this->galleries" />
-    @endif
 
     <flux:modal name="gallery-create" class="max-w-lg">
         <form wire:submit="createGallery" class="space-y-6">
@@ -212,6 +223,7 @@
         </form>
     </flux:modal>
 
+    @if ($canRegenerate)
     <flux:modal name="gallery-regenerate-all-confirm" class="max-w-xl">
         <div class="space-y-6">
             <div>
@@ -255,7 +267,9 @@
             </div>
         </div>
     </flux:modal>
+    @endif
 
+    @if ($canSettings)
     <flux:modal name="gallery-settings" class="max-w-4xl">
         <form wire:submit="saveSettings" class="space-y-6">
             <div>
@@ -288,4 +302,5 @@
             </div>
         </form>
     </flux:modal>
+    @endif
 </x-admin-ui::page>

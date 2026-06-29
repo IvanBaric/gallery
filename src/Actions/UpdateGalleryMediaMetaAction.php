@@ -6,6 +6,7 @@ namespace IvanBaric\Gallery\Actions;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use IvanBaric\Corexis\Concerns\UsesOptimisticLocking;
 use IvanBaric\Corexis\Data\ActionResult;
 use IvanBaric\Gallery\Events\GalleryMediaMetaUpdated;
 use IvanBaric\Gallery\Models\Gallery;
@@ -14,6 +15,8 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media as SpatieMedia;
 
 final class UpdateGalleryMediaMetaAction
 {
+    use UsesOptimisticLocking;
+
     /**
      * @param  array<string, mixed>  $data
      */
@@ -34,6 +37,7 @@ final class UpdateGalleryMediaMetaAction
             'source_url' => ['nullable', 'url', 'max:2048'],
             'license' => ['nullable', 'string', 'max:180'],
             'is_decorative' => ['boolean'],
+            'lock_version' => ['nullable', 'integer', 'min:0'],
         ]);
 
         if ($validator->fails()) {
@@ -45,10 +49,17 @@ final class UpdateGalleryMediaMetaAction
         }
 
         $form = $validator->validated();
+        $expectedLockVersion = $this->pullExpectedLockVersion($form);
 
-        DB::transaction(static function () use ($form, $media, $gallery): void {
-            $media->name = filled($form['title'] ?? null) ? (string) $form['title'] : $media->name;
-            $media->custom_properties = array_merge($media->custom_properties ?? [], [
+        $saved = DB::transaction(function () use ($form, $media, $gallery, $expectedLockVersion): bool {
+            /** @var SpatieMedia $lockedMedia */
+            $lockedMedia = $media->newQuery()
+                ->whereKey($media->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $lockedMedia->name = filled($form['title'] ?? null) ? (string) $form['title'] : $lockedMedia->name;
+            $lockedMedia->custom_properties = array_merge($lockedMedia->custom_properties ?? [], [
                 'alt' => ($form['alt'] ?? '') ?: null,
                 'title' => ($form['title'] ?? '') ?: null,
                 'caption' => ($form['caption'] ?? '') ?: null,
@@ -58,9 +69,14 @@ final class UpdateGalleryMediaMetaAction
                 'license' => ($form['license'] ?? '') ?: null,
                 'is_decorative' => (bool) ($form['is_decorative'] ?? false),
             ]);
-            $media->save();
-            $gallery->touch();
+            $lockedMedia->save();
+
+            return $this->saveWithOptimisticLock($gallery, [], $expectedLockVersion);
         });
+
+        if (! $saved) {
+            return $this->staleModelResult();
+        }
 
         event(new GalleryMediaMetaUpdated($gallery->refresh(), (int) $media->id));
 

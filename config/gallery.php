@@ -39,6 +39,14 @@ return [
         'groups' => GalleryPermissions::groups(),
     ],
 
+    'admin' => [
+        'advanced_controls' => [
+            'superadmin_only' => env('GALLERY_ADVANCED_CONTROLS_SUPERADMIN_ONLY', false),
+            'superadmin_attribute' => env('GALLERY_SUPERADMIN_ATTRIBUTE', env('VELORA_SUPERADMIN_ATTRIBUTE', 'is_superadmin')),
+            'actions' => ['settings', 'regenerate'],
+        ],
+    ],
+
     'velora_permissions' => [
         [
             'name' => 'gallery',
@@ -74,8 +82,8 @@ return [
 
     'validation' => [
         'max_files' => 30,
-        'max_file_size_kb' => 3072,
-        'mimes' => ['jpg', 'jpeg', 'png', 'webp'],
+        'max_file_size_kb' => null,
+        'mimes' => null,
         'min_width' => null,
         'min_height' => null,
     ],
@@ -84,14 +92,10 @@ return [
         'vehicle' => [
             'label' => 'Vozilo',
             'max_files' => 30,
-            'max_file_size_kb' => 3072,
-            'mimes' => ['jpg', 'jpeg', 'png', 'webp'],
         ],
         'purchase_request' => [
             'label' => 'Otkup',
             'max_files' => 30,
-            'max_file_size_kb' => 3072,
-            'mimes' => ['jpg', 'jpeg', 'png', 'webp'],
         ],
     ],
 
@@ -101,7 +105,7 @@ return [
             'width' => 150,
             'height' => 150,
             'fit' => 'crop',
-            'enabled' => true,
+            'enabled' => false,
         ],
         'thumb' => [
             'label' => 'Thumb',
@@ -122,7 +126,7 @@ return [
             'width' => 768,
             'height' => null,
             'fit' => 'contain',
-            'enabled' => true,
+            'enabled' => false,
         ],
         'large' => [
             'label' => 'Large',
@@ -143,7 +147,7 @@ return [
             'width' => 600,
             'height' => 400,
             'fit' => 'crop',
-            'enabled' => true,
+            'enabled' => false,
         ],
     ],
 

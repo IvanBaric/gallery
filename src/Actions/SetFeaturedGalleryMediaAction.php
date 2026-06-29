@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace IvanBaric\Gallery\Actions;
 
 use Illuminate\Support\Facades\DB;
+use IvanBaric\Corexis\Concerns\UsesOptimisticLocking;
 use IvanBaric\Corexis\Data\ActionResult;
 use IvanBaric\Gallery\Events\GalleryMediaFeatured;
 use IvanBaric\Gallery\Models\Gallery;
@@ -12,7 +13,9 @@ use IvanBaric\Gallery\Support\GalleryPermissions;
 
 final class SetFeaturedGalleryMediaAction
 {
-    public function handle(Gallery $gallery, int $mediaId): ActionResult
+    use UsesOptimisticLocking;
+
+    public function handle(Gallery $gallery, int $mediaId, ?int $expectedLockVersion = null): ActionResult
     {
         GalleryPermissions::authorize('update');
 
@@ -20,9 +23,13 @@ final class SetFeaturedGalleryMediaAction
             return ActionResult::error(__('Fotografija nije pronađena u galeriji.'), 'gallery_media_not_found');
         }
 
-        DB::transaction(static function () use ($gallery, $mediaId): void {
-            $gallery->forceFill(['featured_media_id' => $mediaId])->save();
+        $saved = DB::transaction(function () use ($gallery, $mediaId, $expectedLockVersion): bool {
+            return $this->saveWithOptimisticLock($gallery, ['featured_media_id' => $mediaId], $expectedLockVersion);
         });
+
+        if (! $saved) {
+            return $this->staleModelResult();
+        }
 
         event(new GalleryMediaFeatured($gallery->refresh(), $mediaId));
 

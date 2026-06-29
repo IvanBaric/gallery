@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace IvanBaric\Gallery\Actions;
 
+use Illuminate\Support\Facades\DB;
 use IvanBaric\Corexis\Data\ActionResult;
 use IvanBaric\Gallery\Events\GalleryMediaReordered;
 use IvanBaric\Gallery\Models\Gallery;
@@ -30,8 +31,23 @@ final class ReorderGalleryMediaAction
         $position = max(0, min($position, count($ids)));
         array_splice($ids, $position, 0, [$mediaId]);
 
-        Media::setNewOrder($ids);
-        $gallery->touch();
+        DB::transaction(static function () use ($gallery, $ids): void {
+            /** @var Gallery $lockedGallery */
+            $lockedGallery = Gallery::query()
+                ->whereKey($gallery->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            Media::query()
+                ->where('model_type', $lockedGallery->getMorphClass())
+                ->where('model_id', $lockedGallery->getKey())
+                ->whereIn('id', $ids)
+                ->lockForUpdate()
+                ->get();
+
+            Media::setNewOrder($ids);
+            $lockedGallery->touch();
+        });
 
         event(new GalleryMediaReordered($gallery->refresh(), $ids));
 

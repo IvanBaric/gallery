@@ -28,8 +28,14 @@ final class UploadGalleryMediaAction
         $mediaIds = [];
 
         DB::transaction(static function () use ($gallery, $uploads, $collection, &$mediaIds): void {
+            /** @var Gallery $lockedGallery */
+            $lockedGallery = Gallery::query()
+                ->whereKey($gallery->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
             foreach ($uploads as $upload) {
-                $media = $gallery
+                $media = $lockedGallery
                     ->addMedia($upload->getRealPath())
                     ->usingFileName($upload->hashName())
                     ->usingName(pathinfo($upload->getClientOriginalName(), PATHINFO_FILENAME) ?: $upload->hashName())
@@ -48,7 +54,7 @@ final class UploadGalleryMediaAction
                 $mediaIds[] = (int) $media->id;
             }
 
-            $gallery->touch();
+            $lockedGallery->touch();
         });
 
         event(new GalleryMediaUploaded($gallery->refresh(), $mediaIds));
